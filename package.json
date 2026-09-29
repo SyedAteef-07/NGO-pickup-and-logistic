@@ -1,29 +1,26 @@
 {
-  "name": "aaharaconnect-volunteer-admin",
+  "name": "aaharaconnect",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
+  "workspaces": [
+    "apps/web",
+    "apps/mobile",
+    "server",
+    "packages/shared"
+  ],
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
-    "check:i18n": "node scripts/audit-i18n.mjs",
-    "test:smoke": "node scripts/smoke-ui.mjs",
-    "preview": "vite preview --host 0.0.0.0"
+    "web": "npm run dev --workspace apps/web",
+    "mobile": "npm run start --workspace apps/mobile",
+    "server": "npm run dev --workspace server",
+    "build:shared": "npm run build --workspace packages/shared",
+    "build:web": "npm run build:shared && npm run build --workspace apps/web",
+    "build:server": "npm run build:shared && npm run build --workspace server",
+    "check:mobile": "npm run build:shared && npm run typecheck --workspace apps/mobile",
+    "lint:mobile": "npm run lint --workspace apps/mobile",
+    "test:web": "npm run test:smoke --workspace apps/web && npm run check:i18n --workspace apps/web",
+    "install:all": "npm install"
   },
-  "dependencies": {
-    "lucide-react": "^0.468.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.20",
-    "jsdom": "^25.0.1",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.16",
-    "typescript": "^5.7.2",
-    "vite": "^5.4.11"
+  "engines": {
+    "node": ">=22.13.0"
   }
 }

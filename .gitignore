@@ -1,5 +1,35 @@
+# Dependencies and generated output
 node_modules/
+**/node_modules/
 dist/
-.npm-cache/
+**/dist/
+build/
+**/build/
+coverage/
+**/coverage/
+.expo/
+**/.expo/
+.eas/
 *.tsbuildinfo
+.npm-cache/
+
+# Local environment and credentials (keep examples)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Local tools and logs
+.vscode/
+**/.vscode/
+.idea/
+**/.idea/
+*.log
+npm-debug.log*
 .DS_Store
+Thumbs.db
+
+# Existing local duplicate of the tracked root web prototype; apps/web is canonical.
+/WEB/
