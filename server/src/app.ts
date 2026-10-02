@@ -1,4 +1,5 @@
 import express from 'express';
+import { randomUUID } from 'node:crypto';
 import cors from 'cors';
 import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
@@ -10,8 +11,11 @@ app.disable('x-powered-by');
 app.use(cors({ origin: env.corsOrigins }));
 app.use(express.json({ limit: '1mb' }));
 app.use((request, response, next) => {
+  const requestId = randomUUID();
+  response.locals.requestId = requestId;
+  response.setHeader('X-Request-ID', requestId);
   const started = Date.now();
-  response.on('finish', () => console.info(`[api] ${request.method} ${request.originalUrl.split('?')[0]} ${response.statusCode} ${Date.now() - started}ms`));
+  response.on('finish', () => console.info(JSON.stringify({ level: 'info', requestId, method: request.method, path: request.originalUrl.split('?')[0], status: response.statusCode, durationMs: Date.now() - started })));
   next();
 });
 app.use('/api/v1', apiRouter);

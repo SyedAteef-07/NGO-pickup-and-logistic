@@ -1,12 +1,13 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { C, font, shadow } from '../constants/theme';
 import { donorProfile, initialAssignments, initialAvailability, initialRequests, volunteerProfile } from '../data/mockData';
 import { AssignmentStatus, AvailabilitySlot, DonorProfile, DonorRequest, Role, VolunteerAssignment, VolunteerProfile } from '../types';
 import { useLanguage } from './LanguageContext';
+import { restoreAppUser, signOut } from '../api/auth';
 
 type AppValue = {
-  role: Role; login: (role: Exclude<Role, null>) => void; logout: () => void;
+  role: Role; login: (role: Exclude<Role, null>) => void; loginAuthenticated: (role: Exclude<Role, null>) => void; logout: () => void;
   assignments: VolunteerAssignment[]; updateAssignment: (id: string, status: AssignmentStatus, reason?: string) => void;
   slots: AvailabilitySlot[]; saveSlot: (slot: AvailabilitySlot) => void; deleteSlot: (id: string) => void;
   volunteer: VolunteerProfile; saveVolunteer: (profile: VolunteerProfile) => void;
@@ -18,6 +19,16 @@ const Context = createContext<AppValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   const [role, setRole] = useState<Role>(null);
+  const demoChosen = useRef(false);
+  useEffect(() => {
+    let active = true;
+    restoreAppUser().then(user => {
+      if (active && !demoChosen.current && (user?.role === 'DONOR' || user?.role === 'VOLUNTEER')) {
+        setRole(user.role === 'DONOR' ? 'donor' : 'volunteer');
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   const [assignments, setAssignments] = useState(initialAssignments);
   const [slots, setSlots] = useState(initialAvailability);
   const [volunteer, setVolunteer] = useState(volunteerProfile);
@@ -46,7 +57,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setRequests(prev => prev.map(request => request.id === id ? { ...request, status: 'Cancelled' } : request));
     notify('Request cancelled'); return true;
   };
-  const value = { role, login: setRole, logout: () => setRole(null), assignments, updateAssignment,
+  const value = {
+    role,
+    login: (next: Exclude<Role, null>) => { demoChosen.current = true; void signOut(); setRole(next); },
+    loginAuthenticated: (next: Exclude<Role, null>) => { demoChosen.current = false; setRole(next); },
+    logout: () => { demoChosen.current = false; setRole(null); void signOut(); },
+    assignments, updateAssignment,
     slots, saveSlot, deleteSlot, volunteer, saveVolunteer, donor, saveDonor, requests, submitRequest, cancelRequest, notify };
   return <Context.Provider value={value}>
     {children}
