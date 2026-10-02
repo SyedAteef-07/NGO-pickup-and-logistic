@@ -1,5 +1,23 @@
 import { Router } from 'express';
 import { healthRouter } from './health';
+import { authRouter } from './auth';
+import { volunteerRoutes } from '../modules/volunteers/routes';
+import { foodRoutes } from '../modules/food/routes';
+import { pickupRoutes, vehicleAssignmentRoutes } from '../modules/pickups/routes';
+import { vehicleRoutes } from '../modules/vehicles/routes';
+import { pickupTrackingRoutes, vehicleTrackingRoutes } from '../modules/tracking/routes';
 
 export const apiRouter = Router();
 apiRouter.use('/health', healthRouter);
+apiRouter.use(authRouter);
+apiRouter.use('/volunteers', volunteerRoutes);
+apiRouter.use('/teams', volunteerRoutes);
+apiRouter.use('/donors', foodRoutes);
+apiRouter.use('/food-requests', foodRoutes);
+apiRouter.use('/pickups', pickupRoutes);
+apiRouter.use('/pickups', pickupTrackingRoutes);
+apiRouter.use('/assignments', pickupRoutes);
+apiRouter.use('/vehicles', vehicleAssignmentRoutes);
+apiRouter.use('/vehicles', vehicleTrackingRoutes);
+apiRouter.use('/vehicles', vehicleRoutes);
+apiRouter.use('/drivers', vehicleRoutes);

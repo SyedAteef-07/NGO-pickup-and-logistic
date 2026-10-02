@@ -1,0 +1,26 @@
+# Confirm this GitHub account has review permissions before branch protection is enabled.
+/AGENTS.md @designerhawk12
+/package.json @designerhawk12
+/package-lock.json @designerhawk12
+/packages/shared/ @designerhawk12
+/server/db/ @designerhawk12
+/server/src/db/ @designerhawk12
+/server/src/auth/ @designerhawk12
+/server/src/config/ @designerhawk12
+/server/src/middleware/ @designerhawk12
+/server/src/routes/ @designerhawk12
+/server/package.json @designerhawk12
+/apps/web/package.json @designerhawk12
+/apps/mobile/package.json @designerhawk12
+/apps/web/src/api/ @designerhawk12
+/apps/mobile/src/api/ @designerhawk12
+/server/src/modules/tracking/ @designerhawk12
+/server/src/modules/vehicles/ @designerhawk12
+/.github/ @designerhawk12
+/docs/ARCHITECTURE.md @designerhawk12
+/docs/API_CONTRACTS.md @designerhawk12
+/docs/DATA_MODEL.md @designerhawk12
+/docs/DEPLOYMENT.md @designerhawk12
+/docs/FOUNDATION_CHANGELOG.md @designerhawk12
+/docs/TEAM_OWNERSHIP.md @designerhawk12
+/docs/WORKFLOW_STATES.md @designerhawk12

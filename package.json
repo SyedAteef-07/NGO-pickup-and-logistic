@@ -18,6 +18,8 @@
     "check:mobile": "npm run build:shared && npm run typecheck --workspace apps/mobile",
     "lint:mobile": "npm run lint --workspace apps/mobile",
     "test:web": "npm run test:smoke --workspace apps/web && npm run check:i18n --workspace apps/web",
+    "test:server": "npm run build:shared && npm run test --workspace server",
+    "check:foundation": "npm run build:shared && npm run typecheck --workspace packages/shared && npm run typecheck --workspace server && npm run test --workspace server",
     "install:all": "npm install"
   },
   "engines": {
