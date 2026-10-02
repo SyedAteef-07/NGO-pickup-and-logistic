@@ -215,6 +215,11 @@ h1,h2,h3 { letter-spacing:-.025em; }
 .toast { font-size:14px; padding:15px 16px; }
 .settings-card { padding:27px; }
 .settings-card h2 { font-size:20px; }
+.settings-grid .settings-card:last-child { grid-column:1 / -1; }
+.settings-auth-form { display:grid; gap:14px; max-width:420px; margin-bottom:18px; }
+.settings-auth-form .field { display:grid; gap:7px; }
+.settings-auth-form .button { justify-self:start; }
+.settings-auth-message { margin:12px 0; font-size:14px; color:#9d4726; }
 .settings-card>p,.settings-row,.settings-toggle strong { font-size:14px; }
 .settings-toggle small,.settings-note { font-size:12px; }
 

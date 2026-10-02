@@ -1,5 +1,6 @@
 import { app } from './app';
 import { env } from './config/env';
+import { closePool } from './db/pool';
 
 const server = app.listen(env.port, () => {
   console.info(`[api] Listening on http://localhost:${env.port}/api/v1`);
@@ -7,9 +8,11 @@ const server = app.listen(env.port, () => {
 
 function shutdown(signal: string) {
   console.info(`[api] ${signal} received; closing server.`);
-  server.close(error => {
+  server.close(async error => {
     if (error) { console.error('[api] Shutdown failed:', error); process.exitCode = 1; }
-    else console.info('[api] Server stopped.');
+    try { await closePool(); }
+    catch (poolError) { console.error('[api] Database shutdown failed:', poolError); process.exitCode = 1; }
+    if (!error && !process.exitCode) console.info('[api] Server stopped.');
   });
 }
 process.once('SIGINT', () => shutdown('SIGINT'));

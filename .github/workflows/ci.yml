@@ -1,0 +1,41 @@
+name: Foundation checks
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aahara_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aahara_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aahara_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aahara_test
+      ALLOW_TEST_DATABASE_MUTATION: 'true'
+      DATABASE_SSL: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build:shared
+      - run: npm run migrate:up --workspace server
+      - run: npm run migrate:status --workspace server
+      - run: npm run build:web
+      - run: npm run build:server
+      - run: npm run check:mobile
+      - run: npm run lint:mobile
+      - run: npm run test:web
+      - run: npm run test:server

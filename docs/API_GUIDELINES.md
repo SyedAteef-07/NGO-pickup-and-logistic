@@ -33,9 +33,9 @@ Error `code` is stable for client logic; `message` explains the issue to a perso
 
 1. Agree on the path, request shape, response shape, and ownership with the other teams.
 2. Add or update generic/shared types when multiple workspaces use them.
-3. Add a route under `server/src/routes`; keep HTTP concerns in a controller.
+3. Add a route in the owning `server/src/modules/<module>/routes.ts`; keep HTTP concerns in a controller. Shared auth and health routes remain in `server/src/routes`.
 4. Put business rules in a service and database access in a repository.
 5. Add validation, authorization where needed, error cases, and tests for the behavior.
 6. Use the web/mobile API clients for frontend integration and update this documentation if conventions change.
 
-Only `GET /api/v1/health` exists in the scaffold. No project resource endpoints have been created yet.
+The foundation implements `GET /api/v1/health/ready`, `GET /api/v1/me`, and `PATCH /api/v1/admin/users/:id/role`. Module 3 also implements the read-only, ADMIN-only `GET /api/v1/vehicles/:id/assignments` projection. Five module boundaries are mounted; the other domain endpoints remain unimplemented. See `API_CONTRACTS.md` for approved DTOs, authorization and planned endpoints. Do not describe a planned endpoint as implemented.
