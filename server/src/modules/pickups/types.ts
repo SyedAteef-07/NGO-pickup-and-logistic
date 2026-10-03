@@ -1,0 +1,63 @@
+import type {
+  Assignment,
+  AssignmentStatus,
+  AssignmentTransition,
+  CreateAssignment,
+  CreatePickup,
+  Page,
+  Pickup,
+  PickupStatus,
+} from '@aaharaconnect/shared';
+
+export type {
+  Assignment,
+  AssignmentStatus,
+  AssignmentTransition,
+  CreateAssignment,
+  CreatePickup,
+  Page,
+  Pickup,
+  PickupStatus,
+};
+
+export type PickupRow = {
+  id: string;
+  food_request_id: string;
+  window_starts_at: Date;
+  window_ends_at: Date;
+  delivery_address: string;
+  status: PickupStatus;
+  version: number;
+  created_at: Date;
+};
+
+export type AssignmentRow = {
+  id: string;
+  pickup_id: string;
+  team_id: string | null;
+  driver_id: string;
+  vehicle_id: string;
+  role: string;
+  status: AssignmentStatus;
+  version: number;
+  created_at: Date;
+};
+
+export type IdempotencyKeyRow = {
+  actor_user_id: string;
+  key: string;
+  request_hash: string;
+  assignment_id: string | null;
+  created_at: Date;
+};
+
+export type PickupDetail = Pickup & {
+  deliveryAddress: string;
+  createdAt?: string;
+};
+
+export type ListPickupsQuery = {
+  cursor?: string;
+  limit: number;
+};
+
