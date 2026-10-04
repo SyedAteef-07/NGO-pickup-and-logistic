@@ -1,4 +1,4 @@
-import type { Assignment, AvailabilitySlot, Driver, Event, Vehicle, Volunteer, VolunteerTeam } from '../types'
+import type { Assignment, AvailabilitySlot, Driver, Event, Vehicle, VehicleMaintenanceRecord, Volunteer, VolunteerTeam } from '../types'
 
 export const skills = ['Food Handling', 'Coordination', 'Driving', 'Distribution', 'First Aid', 'Event Support']
 export const roles = ['Team Leader', 'Driver', 'Pickup Volunteer', 'Food Handling Volunteer', 'Distribution Volunteer']
@@ -44,10 +44,17 @@ export const drivers: Driver[] = [
 ]
 
 export const vehicles: Vehicle[] = [
-  { vehicleId:'V002', registrationNumber:'KA-09-AB-2048', type:'Van 02', capacityKg:250, status:'AVAILABLE' },
-  { vehicleId:'V001', registrationNumber:'KA-05-MN-1180', type:'Van 01', capacityKg:200, status:'ON TRIP' },
-  { vehicleId:'V003', registrationNumber:'KA-03-CD-4512', type:'Van 03', capacityKg:300, status:'AVAILABLE' },
-  { vehicleId:'V004', registrationNumber:'KA-01-PQ-7734', type:'Mini Truck 01', capacityKg:450, status:'MAINTENANCE' },
+  { vehicleId:'V002', registrationNumber:'KA-09-AB-2048', type:'Van 02', capacityKg:250, status:'AVAILABLE', sizeCategory:'MEDIUM', indicativeMaxVessels:14, driverId:'D001', lastMaintenance:'2026-08-15', nextMaintenance:'2026-10-15' },
+  { vehicleId:'V001', registrationNumber:'KA-05-MN-1180', type:'Van 01', capacityKg:200, status:'ON TRIP', sizeCategory:'SMALL', indicativeMaxVessels:10, driverId:'D002', lastMaintenance:'2026-09-01', nextMaintenance:'2026-11-01' },
+  { vehicleId:'V003', registrationNumber:'KA-03-CD-4512', type:'Van 03', capacityKg:300, status:'AVAILABLE', sizeCategory:'MEDIUM', indicativeMaxVessels:18, driverId:'D003', lastMaintenance:'2026-07-20', nextMaintenance:'2026-10-02' },
+  { vehicleId:'V004', registrationNumber:'KA-01-PQ-7734', type:'Mini Truck 01', capacityKg:450, status:'MAINTENANCE', sizeCategory:'LARGE', indicativeMaxVessels:26, driverId:'D004', lastMaintenance:'2026-09-10', nextMaintenance:'2026-09-25' },
+]
+
+export const initialMaintenanceRecords: VehicleMaintenanceRecord[] = [
+  { recordId:'MNT001', vehicleId:'V004', servicedOn:'2026-09-10', condition:'NEEDS_SERVICE', serviceType:'Brake Repair', summary:'Brake pad wear detected; replacement required before high-payload trips.', nextServiceDueOn:'2026-09-25', recordedBy:'Anjali Mehta' },
+  { recordId:'MNT002', vehicleId:'V001', servicedOn:'2026-09-01', condition:'GOOD', serviceType:'General Service', summary:'Routine 10,000 km oil change and tire rotation. All systems normal.', nextServiceDueOn:'2026-11-01', recordedBy:'Anjali Mehta' },
+  { recordId:'MNT003', vehicleId:'V002', servicedOn:'2026-08-15', condition:'GOOD', serviceType:'Insurance & Fitness', summary:'Annual fitness certificate renewal and emission clearance passed.', nextServiceDueOn:'2026-10-15', recordedBy:'Anjali Mehta' },
+  { recordId:'MNT004', vehicleId:'V003', servicedOn:'2026-07-20', condition:'GOOD', serviceType:'AC Service', summary:'Refrigeration unit inspection and insulated chamber sanitize.', nextServiceDueOn:'2026-10-02', recordedBy:'Anjali Mehta' },
 ]
 
 export const initialAssignments: Assignment[] = [

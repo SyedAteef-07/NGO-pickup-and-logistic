@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, ClipboardList, LayoutDashboard, Leaf, Menu, Settings, Users, UsersRound, X } from 'lucide-react'
+import { Bell, ChevronDown, ClipboardList, LayoutDashboard, Leaf, Menu, Settings, Truck, Users, UsersRound, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { Page } from '../../types'
 import { Avatar } from '../common/UI'
@@ -9,8 +9,9 @@ const nav: { id: Page; label: string; icon: typeof LayoutDashboard }[] = [
   { id:'volunteers', label:'Volunteers', icon:Users },
   { id:'teams', label:'Teams', icon:UsersRound },
   { id:'assignments', label:'Assignments', icon:ClipboardList },
+  { id:'vehicles', label:'Vehicles', icon:Truck },
 ]
-const titles: Record<Page,string> = { dashboard:'Volunteer Management', volunteers:'Volunteers', teams:'Volunteer Teams', assignments:'Assignments', settings:'Settings' }
+const titles: Record<Page,string> = { dashboard:'Volunteer Management', volunteers:'Volunteers', teams:'Volunteer Teams', assignments:'Assignments', vehicles:'Vehicle Details & Fleet', settings:'Settings' }
 
 export function Layout({ page, onPage, language, onLanguageChange, children }: { page: Page; onPage: (page: Page) => void; language: Language; onLanguageChange: (language: Language) => void; children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
