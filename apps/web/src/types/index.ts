@@ -1,7 +1,7 @@
 export type VolunteerStatus = 'AVAILABLE' | 'ASSIGNED' | 'ON_DUTY' | 'OFF_DUTY' | 'UNAVAILABLE'
 export type SlotStatus = 'AVAILABLE' | 'RESERVED' | 'UNAVAILABLE'
 export type AssignmentStatus = 'Pending' | 'Accepted' | 'In Progress' | 'Completed' | 'Rejected' | 'Cancelled'
-export type Page = 'dashboard' | 'volunteers' | 'teams' | 'assignments' | 'settings'
+export type Page = 'dashboard' | 'volunteers' | 'teams' | 'assignments' | 'vehicles' | 'settings'
 
 export interface Volunteer {
   volunteerId: string
@@ -31,5 +31,26 @@ export interface Assignment {
   assignedTime: string
 }
 export interface Event { eventId: string; title: string; location: string; dateTime: string; eventType: string; expectedMeals: number }
-export interface Vehicle { vehicleId: string; registrationNumber: string; type: string; capacityKg: number; status: 'AVAILABLE' | 'ON TRIP' | 'MAINTENANCE' }
+export interface Vehicle {
+  vehicleId: string
+  registrationNumber: string
+  type: string
+  capacityKg: number
+  status: 'AVAILABLE' | 'ON TRIP' | 'MAINTENANCE'
+  sizeCategory?: 'SMALL' | 'MEDIUM' | 'LARGE'
+  indicativeMaxVessels?: number
+  driverId?: string
+  lastMaintenance?: string
+  nextMaintenance?: string
+}
 export interface Driver { driverId: string; name: string; phone: string; licenseNumber: string; licenseExpiry: string; status: 'AVAILABLE' | 'ON TRIP' | 'UNAVAILABLE' }
+export interface VehicleMaintenanceRecord {
+  recordId: string
+  vehicleId: string
+  servicedOn: string
+  condition: 'GOOD' | 'NEEDS_SERVICE' | 'UNSAFE'
+  serviceType: string
+  summary: string
+  nextServiceDueOn?: string
+  recordedBy?: string
+}
