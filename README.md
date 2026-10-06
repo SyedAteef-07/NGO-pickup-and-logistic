@@ -17,7 +17,7 @@ The web and mobile apps remain separate workspaces with their existing screens, 
 
 ## Prerequisites
 
-- Node.js 22.13 or newer and npm
+- Node.js 22.13 or newer within the 22.x line, and npm
 - Expo Go or an Android/iOS emulator for mobile testing
 
 ## Install
