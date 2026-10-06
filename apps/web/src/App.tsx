@@ -11,6 +11,8 @@ import PickupsLogistics from './pages/PickupsLogistics'
 import Settings from './pages/Settings'
 import VehicleTracking from './pages/VehicleTracking'
 import Vehicles from './pages/Vehicles'
+import FoodDonor from './pages/FoodDonor'
+import LivePickupsPanel from './components/assignments/LivePickupsPanel'
 import { useRenderedLanguage, type Language } from './lib/i18n'
 import type { Assignment, Page, Vehicle, VehicleMaintenanceRecord, Volunteer, VolunteerTeam } from './types'
 
@@ -25,7 +27,7 @@ export default function App() {
         : null
       const directHash = window.location.hash.replace(/^#\/?(workspace\/?)?/, '').split('?')[0]
       const p = searchP || hashQuery || directHash
-      if (p === 'pickups' || p === 'volunteers' || p === 'teams' || p === 'assignments' || p === 'tracking' || p === 'vehicles' || p === 'settings') {
+      if (p === 'food' || p === 'pickups' || p === 'volunteers' || p === 'teams' || p === 'assignments' || p === 'tracking' || p === 'vehicles' || p === 'settings') {
         return p as Page
       }
     }
@@ -62,11 +64,12 @@ export default function App() {
     {page === 'dashboard' && <Dashboard volunteers={volunteers} teams={teams} assignments={assignments} onCreateAssignment={() => openAssignment()} onViewAssignments={() => setPage('assignments')} onViewVolunteers={() => setPage('volunteers')} onViewPickups={() => setPage('pickups')}/>}
     {page === 'volunteers' && <Volunteers volunteers={volunteers} teams={teams} assignments={assignments} setVolunteers={setVolunteers} onAssignTeam={assignTeam} onCreateAssignment={openAssignment} notify={notify}/>}
     {page === 'teams' && <Teams volunteers={volunteers} teams={teams} setTeams={setTeams} onAssignTeam={assignTeam} notify={notify}/>}
-    {page === 'assignments' && <Assignments assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/>}
+    {page === 'food' && <FoodDonor/>}
+    {page === 'assignments' && <><LivePickupsPanel/><Assignments assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/></>}
     {page === 'pickups' && <PickupsLogistics assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/>}
     {page === 'tracking' && <VehicleTracking />}
     {page === 'vehicles' && <Vehicles vehicles={vehicles} setVehicles={setVehicles} maintenanceRecords={maintenanceRecords} setMaintenanceRecords={setMaintenanceRecords} drivers={initialDrivers} assignments={assignments} events={events} notify={notify}/>}
-    {page === 'settings' && <Settings notifications={showSuccessNotifications} onNotificationsChange={setShowSuccessNotifications}/>}
+    {page === 'settings' && <Settings notifications={showSuccessNotifications} onNotificationsChange={setShowSuccessNotifications} onAdminSignIn={() => setPage('dashboard')}/>}
     {assignmentOpen && <CreateAssignmentDialog volunteers={volunteers} teams={teams} assignments={assignments} initialVolunteerId={initialVolunteerId} onClose={() => setAssignmentOpen(false)} onCreate={createAssignment} notify={notify}/>}
     {toast && <Toast message={toast.message} kind={toast.kind} onClose={() => setToast(null)}/>}
   </Layout>

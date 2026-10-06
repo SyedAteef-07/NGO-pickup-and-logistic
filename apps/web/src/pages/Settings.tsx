@@ -3,7 +3,7 @@ import type { AppUser } from '@aaharaconnect/shared'
 import { Bell, Building2, Check, Info, Leaf, ShieldCheck } from 'lucide-react'
 import { isLiveAuthConfigured, restoreAdminSession, signInAsAdmin, signOutAdmin } from '../api/auth'
 
-function CoordinatorAuth() {
+function CoordinatorAuth({ onAdminSignIn }: { onAdminSignIn: () => void }) {
   const sessionMarker = 'aaharaconnect-admin-session'
   const configured = isLiveAuthConfigured()
   const [user, setUser] = useState<AppUser | null>(null)
@@ -32,6 +32,7 @@ function CoordinatorAuth() {
       setUser(next)
       window.localStorage.setItem(sessionMarker, '1')
       setPassword('')
+      onAdminSignIn()
     } catch {
       setMessage('Sign in failed or administrator access is unavailable.')
     } finally { setBusy(false) }
@@ -58,6 +59,6 @@ function CoordinatorAuth() {
   </section>
 }
 
-export default function Settings({ notifications, onNotificationsChange }: { notifications: boolean; onNotificationsChange: (enabled: boolean) => void }) {
-  return <><div className="page-heading"><div><span className="eyebrow">WORKSPACE</span><h1>Settings</h1><p>Coordinator preferences for this volunteer management demo.</p></div></div><div className="settings-grid"><section className="panel settings-card"><div className="settings-icon"><Building2 size={22}/></div><h2>Chapter information</h2><p>The operational context shown throughout this prototype.</p><div className="settings-row"><span>Organisation</span><strong>AaharaConnect</strong></div><div className="settings-row"><span>Chapter</span><strong>Bengaluru</strong></div><div className="settings-row"><span>Coordinator</span><strong>Anjali Mehta</strong></div></section><section className="panel settings-card"><div className="settings-icon"><Bell size={22}/></div><h2>Coordinator preferences</h2><p>Adjust how this local demo presents updates.</p><label className="settings-toggle"><span><strong>Show success notifications</strong><small>Confirm when local records are changed</small></span><input type="checkbox" checked={notifications} onChange={e => onNotificationsChange(e.target.checked)}/><i>{notifications && <Check size={14}/>}</i></label><div className="settings-note"><Info size={17}/><span>Volunteer, team and assignment changes are kept in this browser session.</span></div></section><CoordinatorAuth /></div><div className="settings-footer"><Leaf size={18}/> AaharaConnect · Food Rescue Network</div></>
+export default function Settings({ notifications, onNotificationsChange, onAdminSignIn }: { notifications: boolean; onNotificationsChange: (enabled: boolean) => void; onAdminSignIn: () => void }) {
+  return <><div className="page-heading"><div><span className="eyebrow">WORKSPACE</span><h1>Settings</h1><p>Coordinator preferences for this volunteer management demo.</p></div></div><div className="settings-grid"><section className="panel settings-card"><div className="settings-icon"><Building2 size={22}/></div><h2>Chapter information</h2><p>The operational context shown throughout this prototype.</p><div className="settings-row"><span>Organisation</span><strong>AaharaConnect</strong></div><div className="settings-row"><span>Chapter</span><strong>Bengaluru</strong></div><div className="settings-row"><span>Coordinator</span><strong>Anjali Mehta</strong></div></section><section className="panel settings-card"><div className="settings-icon"><Bell size={22}/></div><h2>Coordinator preferences</h2><p>Adjust how this local demo presents updates.</p><label className="settings-toggle"><span><strong>Show success notifications</strong><small>Confirm when local records are changed</small></span><input type="checkbox" checked={notifications} onChange={e => onNotificationsChange(e.target.checked)}/><i>{notifications && <Check size={14}/>}</i></label><div className="settings-note"><Info size={17}/><span>Volunteer, team and assignment changes are kept in this browser session.</span></div></section><CoordinatorAuth onAdminSignIn={onAdminSignIn}/></div><div className="settings-footer"><Leaf size={18}/> AaharaConnect · Food Rescue Network</div></>
 }

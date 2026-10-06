@@ -50,11 +50,11 @@ export default function VehicleTracking() {
       : ''
 
   return (
-    <div style={{ padding: '28px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="tracking-page">
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ margin: 0, fontSize: '28px' }}>Vehicle Tracking</h1>
         <p style={{ color: '#667085', marginTop: '8px' }}>
-          Real-time location monitoring for food pickup vehicles
+          Preview this device's location. Vehicle trip history is not available in the admin API yet.
         </p>
       </div>
 
@@ -67,38 +67,25 @@ export default function VehicleTracking() {
         }}
       >
         <div style={cardStyle}>
-          <small>Vehicle</small>
-          <h2>KA 01 AB 1234</h2>
-          <span>Food Pickup Vehicle</span>
+          <small>Location source</small>
+          <h2>This browser</h2>
+          <span>This preview is not linked to a vehicle or driver.</span>
         </div>
 
         <div style={cardStyle}>
-          <small>Driver</small>
-          <h2>Rahul Kumar</h2>
-          <span>Assigned Driver</span>
-        </div>
-
-        <div style={cardStyle}>
-          <small>Status</small>
-          <h2>{tracking ? '● Tracking' : '○ Stopped'}</h2>
-          <span>{tracking ? 'Location is being monitored' : 'Tracking inactive'}</span>
+          <small>Preview status</small>
+          <h2>{tracking ? '● Active' : '○ Stopped'}</h2>
+          <span>{tracking ? 'Reading this device location' : 'Location preview inactive'}</span>
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 320px',
-          gap: '20px',
-          alignItems: 'start',
-        }}
-      >
+      <div className="tracking-grid">
         <div style={cardStyle}>
-          <h2 style={{ marginTop: 0 }}>Live Vehicle Location</h2>
+          <h2 style={{ marginTop: 0 }}>This device location</h2>
 
           {latitude !== null && longitude !== null ? (
             <iframe
-              title="Vehicle location map"
+              title="This device location map"
               src={mapUrl}
               style={{
                 width: '100%',
@@ -119,7 +106,7 @@ export default function VehicleTracking() {
                 color: '#667085',
               }}
             >
-              Start tracking to display the vehicle location
+              Start preview to display this device location
             </div>
           )}
         </div>
@@ -153,19 +140,19 @@ export default function VehicleTracking() {
               fontSize: '14px',
             }}
           >
-            Location sharing requires the driver's permission.
+            Your browser will ask for location permission. This preview does not report a vehicle location to the API.
           </div>
 
           {!tracking ? (
             <button style={buttonStyle} onClick={startTracking}>
-              Start Tracking
+              Start Preview
             </button>
           ) : (
             <button
               style={{ ...buttonStyle, background: '#b42318' }}
               onClick={stopTracking}
             >
-              Stop Tracking
+              Stop Preview
             </button>
           )}
 

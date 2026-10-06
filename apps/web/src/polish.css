@@ -1,6 +1,25 @@
 /* Visual refinement for the existing volunteer management UI. */
 :root { color:#20342b; background:#faf9f6; }
 body { background:#faf9f6; font-size:15px; line-height:1.5; }
+.module-placeholder { max-width:760px; padding:32px; }
+.module-placeholder h2 { margin:14px 0 8px; font-size:22px; }
+.module-placeholder p { max-width:62ch; margin:0 0 22px; color:#66776c; font-size:15px; }
+.module-placeholder-icon { display:inline-flex; padding:13px; border-radius:12px; background:#e9f4eb; color:#11643e; }
+.live-pickups { margin-bottom:24px; padding:22px 24px; }
+.live-pickups-heading { display:flex; justify-content:space-between; align-items:start; gap:18px; margin-bottom:14px; }
+.live-pickups-heading h2 { margin:0 0 5px; font-size:21px; }
+.live-pickups-heading p, .live-pickups > p { margin:0; color:#66776c; font-size:15px; }
+.live-pickups .data-table td:first-child { overflow-wrap:anywhere; }
+.live-status { display:inline-block; padding:4px 10px; border-radius:999px; border:1px solid #dbe5dc; background:#f6f9f6; color:#28563b; font-size:13px; font-weight:700; }
+.tracking-page { max-width:1200px; margin:0 auto; padding:4px 0 24px; }
+.tracking-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,320px); gap:20px; align-items:start; }
+.metric-card { display:flex; flex-direction:column; gap:5px; min-width:0; padding:18px 20px; border:1px solid #e1e8e0; border-radius:14px; background:#fff; box-shadow:0 2px 9px #1c3f2b0a; }
+.metric-label { font-size:14px; font-weight:600; color:#607263; }
+.metric-value { font-size:32px; line-height:1.15; font-weight:750; color:#193d2b; }
+.metric-sub { color:#718275; font-size:13px; line-height:1.4; }
+@media (max-width:900px) { .tracking-grid { grid-template-columns:1fr; } }
+@media (max-width:600px) { .live-pickups-heading { flex-direction:column; } .module-placeholder { padding:24px; } .breadcrumbs { display:none; } .topbar-right { margin-left:auto; gap:8px; } .page-heading { flex-wrap:wrap; } .page-heading > .flex { flex-wrap:wrap; max-width:100%; } }
+@media (max-width:800px) { body { min-width:0; } .app-shell,.main-area,.content { min-width:0; max-width:100%; } }
 h1,h2,h3 { letter-spacing:-.025em; }
 .app-shell { background:#faf9f6; }
 
