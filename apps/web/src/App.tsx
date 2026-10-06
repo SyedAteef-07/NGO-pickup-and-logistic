@@ -8,6 +8,7 @@ import Volunteers from './pages/Volunteers'
 import Teams from './pages/Teams'
 import Assignments from './pages/Assignments'
 import Settings from './pages/Settings'
+import VehicleTracking from './pages/VehicleTracking'
 import { useRenderedLanguage, type Language } from './lib/i18n'
 import type { Assignment, Page, Volunteer, VolunteerTeam } from './types'
 
@@ -35,6 +36,7 @@ export default function App() {
     {page === 'volunteers' && <Volunteers volunteers={volunteers} teams={teams} assignments={assignments} setVolunteers={setVolunteers} onAssignTeam={assignTeam} onCreateAssignment={openAssignment} notify={notify}/>}
     {page === 'teams' && <Teams volunteers={volunteers} teams={teams} setTeams={setTeams} onAssignTeam={assignTeam} notify={notify}/>}
     {page === 'assignments' && <Assignments assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/>}
+      {page === 'tracking' && <VehicleTracking />}
     {page === 'settings' && <Settings notifications={showSuccessNotifications} onNotificationsChange={setShowSuccessNotifications}/>}
     {assignmentOpen && <CreateAssignmentDialog volunteers={volunteers} teams={teams} assignments={assignments} initialVolunteerId={initialVolunteerId} onClose={() => setAssignmentOpen(false)} onCreate={createAssignment} notify={notify}/>}
     {toast && <Toast message={toast.message} kind={toast.kind} onClose={() => setToast(null)}/>}
