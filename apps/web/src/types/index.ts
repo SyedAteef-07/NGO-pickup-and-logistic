@@ -1,7 +1,7 @@
 export type VolunteerStatus = 'AVAILABLE' | 'ASSIGNED' | 'ON_DUTY' | 'OFF_DUTY' | 'UNAVAILABLE'
 export type SlotStatus = 'AVAILABLE' | 'RESERVED' | 'UNAVAILABLE'
 export type AssignmentStatus = 'Pending' | 'Accepted' | 'In Progress' | 'Completed' | 'Rejected' | 'Cancelled'
-export type Page = 'dashboard' | 'volunteers' | 'teams' | 'assignments' | 'vehicles' | 'settings'
+export type Page = 'dashboard' | 'volunteers' | 'teams' | 'assignments' | 'tracking' | 'vehicles' | 'settings'
 
 export interface Volunteer {
   volunteerId: string
