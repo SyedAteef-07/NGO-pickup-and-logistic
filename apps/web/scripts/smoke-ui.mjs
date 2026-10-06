@@ -22,10 +22,21 @@ try {
 
   await act(async () => root.render(React.createElement(App)))
   assert.match(document.body.textContent, /Volunteer Management/)
+  for (const label of ['Volunteers', 'Food & Donors', 'Pickup & Logistics', 'Vehicle Tracking', 'Vehicle Details']) {
+    assert.ok([...document.querySelectorAll('.side-nav button')].some(item => item.textContent.trim() === label), `${label} module should be visible`)
+  }
+  await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Food & Donors')))
+  assert.match(document.querySelector('main').textContent, /Admin food requests are not connected yet/)
+  await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Vehicle Tracking')))
+  assert.match(document.querySelector('main').textContent, /This device location/)
+  await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Vehicle Details')))
+  assert.match(document.querySelector('main').textContent, /Fleet Registry/)
+  await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Dashboard')))
 
   await click(button('ಕನ್ನಡ'))
   assert.match(document.body.textContent, /ಸ್ವಯಂಸೇವಕರ ನಿರ್ವಹಣೆ/)
   assert.match(document.body.textContent, /ಡ್ಯಾಶ್‌ಬೋರ್ಡ್/)
+  assert.match(document.querySelector('.side-nav').textContent, /ಆಹಾರ ಮತ್ತು ದಾನಿಗಳು/)
   await click(button('English'))
   assert.match(document.body.textContent, /Volunteer Management/)
 

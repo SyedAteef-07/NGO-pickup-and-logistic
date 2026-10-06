@@ -1,4 +1,4 @@
-import { Bell, Car, ChevronDown, ClipboardList, LayoutDashboard, Leaf, Menu, Settings, Truck, Users, UsersRound, X } from 'lucide-react'
+import { Bell, Car, ChevronDown, ClipboardList, LayoutDashboard, Leaf, Menu, PackageOpen, Settings, Truck, Users, UsersRound, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { Page } from '../../types'
 import { Avatar } from '../common/UI'
@@ -8,10 +8,12 @@ const nav: { id: Page; label: string; icon: typeof LayoutDashboard }[] = [
   { id:'dashboard', label:'Dashboard', icon:LayoutDashboard },
   { id:'volunteers', label:'Volunteers', icon:Users },
   { id:'teams', label:'Teams', icon:UsersRound },
-  { id:'assignments', label:'Assignments', icon:ClipboardList },
+  { id:'food', label:'Food & Donors', icon:PackageOpen },
+  { id:'assignments', label:'Pickup & Logistics', icon:ClipboardList },
   { id:'tracking', label:'Vehicle Tracking', icon:Car },
-  { id:'vehicles', label:'Vehicles', icon:Truck },
-const titles: Record<Page,string> = { dashboard:'Volunteer Management', volunteers:'Volunteers', teams:'Volunteer Teams', assignments:'Assignments', vehicles:'Vehicle Details & Fleet', settings:'Settings' }
+  { id:'vehicles', label:'Vehicle Details', icon:Truck },
+]
+const titles: Record<Page,string> = { dashboard:'Volunteer Management', volunteers:'Volunteers', teams:'Volunteer Teams', food:'Food & Donors', assignments:'Pickup & Logistics', tracking:'Vehicle Tracking', vehicles:'Vehicle Details & Fleet', settings:'Settings' }
 
 export function Layout({ page, onPage, language, onLanguageChange, children }: { page: Page; onPage: (page: Page) => void; language: Language; onLanguageChange: (language: Language) => void; children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
