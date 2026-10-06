@@ -18,7 +18,7 @@ export default function Landing() {
       <button className="landing-menu-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label="Main menu" aria-expanded={menuOpen}>{menuOpen ? <X size={22}/> : <Menu size={22}/>}</button>
       <nav className={`landing-menu ${menuOpen ? 'open' : ''}`} aria-label="Main menu">
         <a href="#" onClick={() => setMenuOpen(false)}>Home</a>
-        <a href={workspaceUrl}>Volunteer</a>
+        <a href={workspaceUrl}>NGO admin</a>
         <div className="language-switch" role="group" aria-label="Language"><button type="button" className={language === 'en' ? 'active' : ''} aria-pressed={language === 'en'} onClick={() => changeLanguage('en')}>English</button><span aria-hidden="true">|</span><button type="button" className={language === 'kn' ? 'active' : ''} aria-pressed={language === 'kn'} onClick={() => changeLanguage('kn')}>ಕನ್ನಡ</button></div>
         <a className="landing-cta" href={donorUrl}>Join as food donor</a>
       </nav>
@@ -27,11 +27,11 @@ export default function Landing() {
       <section className="landing-hero">
         <h1>Good food from your event can feed someone tonight.</h1>
         <p>Akshaya Ahar connects function halls and event hosts with volunteers who collect surplus food and deliver it to people in need.</p>
-        <div className="landing-actions"><a className="landing-cta large" href={donorUrl}>Join as food donor <ArrowRight size={18}/></a><a className="landing-link" href={workspaceUrl}>Open volunteer workspace</a></div>
+        <div className="landing-actions"><a className="landing-cta large" href={donorUrl}>Join as food donor <ArrowRight size={18}/></a><a className="landing-link" href={workspaceUrl}>Open admin dashboard</a></div>
       </section>
       <section className="landing-cards">
         <article className="landing-card"><div className="landing-card-icon donor"><HandHeart size={24}/></div><h2>Food donor</h2><p>Tell us what food is left and where. The pickup team collects it from the hall.</p><a className="landing-cta" href={donorUrl}>Join as food donor</a></article>
-        <article className="landing-card"><div className="landing-card-icon"><Users size={24}/></div><h2>Volunteer</h2><p>Coordinate volunteers, teams and pickup assignments.</p><a className="landing-secondary" href={workspaceUrl}>Open volunteer workspace</a></article>
+        <article className="landing-card"><div className="landing-card-icon"><Users size={24}/></div><h2>NGO administration</h2><p>Manage volunteers, teams and pickup assignments for the NGO.</p><a className="landing-secondary" href={workspaceUrl}>Open admin dashboard</a></article>
       </section>
     </main>
   </div>
