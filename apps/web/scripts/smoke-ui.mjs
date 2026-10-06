@@ -13,14 +13,22 @@ const { createRoot } = await import('react-dom/client')
 
 const server = await createServer({ server:{ middlewareMode:true }, appType:'custom' })
 try {
-  const { default:App } = await server.ssrLoadModule('/src/App.tsx')
+  const { default:Root } = await server.ssrLoadModule('/src/Root.tsx')
   const root = createRoot(document.getElementById('root'))
   const click = async element => { assert.ok(element, 'Expected clickable element'); await act(async () => { element.click(); await Promise.resolve() }) }
   const button = label => [...document.querySelectorAll('button')].find(item => item.textContent.trim() === label)
   const setSelect = async (element, value) => { assert.ok(element, 'Expected select'); await act(async () => { element.value = value; element.dispatchEvent(new window.Event('change', { bubbles:true })) }) }
   const setInput = async (element, value) => { assert.ok(element, 'Expected input'); await act(async () => { const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; setter.call(element, value); element.dispatchEvent(new window.Event('input', { bubbles:true })) }) }
 
-  await act(async () => root.render(React.createElement(App)))
+  await act(async () => root.render(React.createElement(Root)))
+  const adminLinks = [...document.querySelectorAll('a[href="#/workspace"]')]
+  assert.ok(adminLinks.length >= 2)
+  assert.ok(adminLinks.every(link => /admin/i.test(link.textContent)), 'Web workspace links must describe the admin app')
+  assert.doesNotMatch(document.querySelector('.landing').textContent, /Open volunteer workspace/)
+
+  await click(document.querySelector('.landing-link'))
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+  assert.equal(window.location.hash, '#/workspace')
   assert.match(document.body.textContent, /Volunteer Management/)
   for (const label of ['Volunteers', 'Food & Donors', 'Pickup & Logistics', 'Vehicle Tracking', 'Vehicle Details']) {
     assert.ok([...document.querySelectorAll('.side-nav button')].some(item => item.textContent.trim() === label), `${label} module should be visible`)
@@ -122,6 +130,7 @@ try {
   await act(async () => root.unmount())
   console.log('Smoke check passed: bilingual UI, assignment flow, status update, volunteer search/filter/add/edit and team create/add/change leader/remove.')
 } finally {
+  await server.waitForRequestsIdle()
   await server.close()
   dom.window.close()
 }

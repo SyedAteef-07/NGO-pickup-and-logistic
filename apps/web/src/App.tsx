@@ -44,7 +44,7 @@ export default function App() {
     {page === 'assignments' && <><LivePickupsPanel/><Assignments assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/></>}
     {page === 'tracking' && <VehicleTracking />}
     {page === 'vehicles' && <Vehicles vehicles={vehicles} setVehicles={setVehicles} maintenanceRecords={maintenanceRecords} setMaintenanceRecords={setMaintenanceRecords} drivers={initialDrivers} assignments={assignments} events={events} notify={notify}/>}
-    {page === 'settings' && <Settings notifications={showSuccessNotifications} onNotificationsChange={setShowSuccessNotifications}/>}
+    {page === 'settings' && <Settings notifications={showSuccessNotifications} onNotificationsChange={setShowSuccessNotifications} onAdminSignIn={() => setPage('dashboard')}/>}
     {assignmentOpen && <CreateAssignmentDialog volunteers={volunteers} teams={teams} assignments={assignments} initialVolunteerId={initialVolunteerId} onClose={() => setAssignmentOpen(false)} onCreate={createAssignment} notify={notify}/>}
     {toast && <Toast message={toast.message} kind={toast.kind} onClose={() => setToast(null)}/>}
   </Layout>
