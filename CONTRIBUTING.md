@@ -12,7 +12,7 @@ develop    Integration branch
 feature/<module-or-feature-name>   Team work
 ```
 
-The repository currently has `main`; create or agree on `develop` before applying this workflow across teams. Never push feature development directly to `main`.
+The repository has `main` and `develop`. Start team feature branches from the current `develop`, and never push feature development directly to `main`.
 
 ## Typical workflow
 

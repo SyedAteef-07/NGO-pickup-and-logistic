@@ -2,15 +2,16 @@ import { useCallback, useState } from 'react'
 import { Layout } from './components/layout/Layout'
 import { Toast } from './components/common/UI'
 import CreateAssignmentDialog from './components/assignments/CreateAssignmentDialog'
-import { initialAssignments, initialTeams, initialVolunteers } from './data/mockData'
+import { drivers as initialDrivers, events, initialAssignments, initialMaintenanceRecords, initialTeams, initialVolunteers, vehicles as initialVehicles } from './data/mockData'
 import Dashboard from './pages/Dashboard'
 import Volunteers from './pages/Volunteers'
 import Teams from './pages/Teams'
 import Assignments from './pages/Assignments'
 import Settings from './pages/Settings'
 import VehicleTracking from './pages/VehicleTracking'
+import Vehicles from './pages/Vehicles'
 import { useRenderedLanguage, type Language } from './lib/i18n'
-import type { Assignment, Page, Volunteer, VolunteerTeam } from './types'
+import type { Assignment, Page, Vehicle, VehicleMaintenanceRecord, Volunteer, VolunteerTeam } from './types'
 
 export default function App() {
   const [language, setLanguage] = useState<Language>(() => window.localStorage.getItem('aaharaconnect-language') === 'kn' ? 'kn' : 'en')
@@ -19,6 +20,8 @@ export default function App() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>(initialVolunteers)
   const [teams, setTeams] = useState<VolunteerTeam[]>(initialTeams)
   const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments)
+  const [vehicles, setVehicles] = useState<Vehicle[]>(initialVehicles)
+  const [maintenanceRecords, setMaintenanceRecords] = useState<VehicleMaintenanceRecord[]>(initialMaintenanceRecords)
   const [assignmentOpen, setAssignmentOpen] = useState(false)
   const [initialVolunteerId, setInitialVolunteerId] = useState<string | undefined>()
   const [toast, setToast] = useState<{ message: string; kind: 'success' | 'error' } | null>(null)
@@ -36,7 +39,8 @@ export default function App() {
     {page === 'volunteers' && <Volunteers volunteers={volunteers} teams={teams} assignments={assignments} setVolunteers={setVolunteers} onAssignTeam={assignTeam} onCreateAssignment={openAssignment} notify={notify}/>}
     {page === 'teams' && <Teams volunteers={volunteers} teams={teams} setTeams={setTeams} onAssignTeam={assignTeam} notify={notify}/>}
     {page === 'assignments' && <Assignments assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/>}
-      {page === 'tracking' && <VehicleTracking />}
+{page === 'tracking' && <VehicleTracking />}
+{page === 'vehicles' && <Vehicles vehicles={vehicles} setVehicles={setVehigit statuscles} maintenanceRecords={maintenanceRecords} setMaintenanceRecords={setMaintenanceRecords} drivers={initialDrivers} assignments={assignments} events={events} notify={notify}/>}
     {page === 'settings' && <Settings notifications={showSuccessNotifications} onNotificationsChange={setShowSuccessNotifications}/>}
     {assignmentOpen && <CreateAssignmentDialog volunteers={volunteers} teams={teams} assignments={assignments} initialVolunteerId={initialVolunteerId} onClose={() => setAssignmentOpen(false)} onCreate={createAssignment} notify={notify}/>}
     {toast && <Toast message={toast.message} kind={toast.kind} onClose={() => setToast(null)}/>}
