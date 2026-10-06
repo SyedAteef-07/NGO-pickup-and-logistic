@@ -1,5 +1,13 @@
 # Development, staging and production setup
 
+## Vercel web deployment
+
+Set the Vercel project's **Root Directory** to the repository root (`./`), not `apps/web`. The root `vercel.json` pins the Vite framework, `npm ci`, `npm run build:web`, and `apps/web/dist`. This installs the npm workspaces and builds `packages/shared` before TypeScript compiles the web app. The root Node engine selects Node 22.x, matching GitHub Actions; select 22.x in Vercel's Node.js Version setting as well. A Vercel deployment builds only the web frontend and does not host the Express API.
+
+Set these build-time environment variable names in Vercel for the appropriate Preview and Production environments: `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_PUBLISHABLE_KEY`. `VITE_API_BASE_URL` must be the publicly reachable Express API origin ending in `/api/v1`; a `localhost` value only works on the developer's machine. The Supabase values are public Auth configuration. Never add `DATABASE_URL`, database passwords, CA files, or service-role keys to Vercel's frontend environment. Preview and production builds can complete before the API is deployed, but live sign-in and API features require that public backend and its CORS origin configuration.
+
+From a clean checkout, reproduce the deployment build with `npm ci` followed by `npm run build:web` at the repository root. Confirm `npm ls @aaharaconnect/shared --workspace apps/web --depth=0` shows the local workspace link. After a deployment, verify the actual URL and Auth settings in the Vercel dashboard without copying their values into Git or logs.
+
 ## Required services and secrets
 
 Use one Supabase project per environment (development, staging, production) when possible, each with its own PostgreSQL database and Supabase Auth configuration. Enable supported email sign-in and email confirmation. Set the project's URL and publishable key on the Express server; these identify the Auth project but are not an administrator secret. The database connection string is server-only. Never put `DATABASE_URL`, database passwords or Supabase secret/service-role keys in `VITE_` or `EXPO_PUBLIC_` variables. The frontends may later receive only the project URL and publishable key for authentication; their application-data URL remains the Express `/api/v1` URL.
@@ -10,7 +18,7 @@ When using the `pg` client's `DATABASE_SSL` options, do not add conflicting `ssl
 ## Migration procedure
 
 1. Use a separate database and backup for each environment. Confirm the connection target, schema permissions, and extension `btree_gist` availability.
-2. Run `npm ci` from the repository root with Node 22.13 or newer.
+2. Run `npm ci` from the repository root with Node 22.13 or newer within the 22.x line.
 3. Set the **server** `DATABASE_URL` and SSL settings. From the root run `npm run migrate:status --workspace server`, inspect pending SQL and existing data, then `npm run migrate:up --workspace server`, then `npm run migrate:status --workspace server`. Development currently has `001_core.sql`, `002_modules.sql`, and `003_vehicle_details.sql` applied. Never edit those applied files; staging/production must apply `003` separately after review.
 4. Apply to development first, then staging after tests, then production during a reviewed release window. Never run two migration jobs at once; the runner also takes a PostgreSQL advisory lock and records checksums.
 5. Applied SQL files are immutable. Correct a defect with a new forward migration; restore from a tested backup if necessary. Review data migrations separately from schema-only changes.
@@ -31,7 +39,7 @@ Confirm exactly one row changed and record the bootstrap in the release log. Aft
 ## Runtime and pilot checks
 
 Build with `npm run build:shared`, `npm run build:server`, `npm run build:web`; run `npm run check:mobile`, `npm run lint:mobile`, `npm run test:web`, and `npm run test:server`. `GET /api/v1/health` is liveness; `/api/v1/health/ready` checks the database. Monitor request IDs, 5xx/409 rates, pool saturation, auth failures and migration version. Run `npm run prune:locations --workspace server` daily once tracking is enabled; location writers must set `expires_at` using `LOCATION_RETENTION_DAYS` and require active pickup plus consent. No continuous background GPS is required.
-The reservation integration test runs only with `TEST_DATABASE_URL` naming a dedicated database ending in `_test` and `ALLOW_TEST_DATABASE_MUTATION=true`; CI supplies an ephemeral `aahara_test` database. Never point it at staging or production.
+The database integration tests run only with `TEST_DATABASE_URL` naming a dedicated database ending in `_test` and `ALLOW_TEST_DATABASE_MUTATION=true`; HTTP integration tests also require `DATABASE_URL` to equal `TEST_DATABASE_URL`. CI supplies an ephemeral `aahara_test` database, disables Supabase SSL for that local PostgreSQL service, and applies migrations `001`–`003` before testing. Never point these tests at staging or production. CI fails if the HTTP database tests are accidentally disabled.
 
 Before any real-user pilot, complete and test domain endpoints, frontend auth and mock-to-live mappings, donor safety review, assignment transitions, failure recovery, authorization, explicit tracking consent, data retention, backup restore and staging end-to-end flows. This foundation alone is **not** production ready.
 

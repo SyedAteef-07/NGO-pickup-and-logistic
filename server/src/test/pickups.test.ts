@@ -54,6 +54,7 @@ const validPickupPayload = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  query.mockReset();
   verify.mockResolvedValue({ authUserId: admin.authUserId, email: 'admin@example.com' });
   findUser.mockResolvedValue(admin);
 });
@@ -1092,75 +1093,6 @@ describe('Pickups Assignment & Reservations API (PR2)', () => {
       expect(res.body.error.code).toBe('RESOURCE_CONFLICT');
     });
   });
-
-  describe.skipIf(!process.env.INTEGRATION_TEST_DB && !process.env.DATABASE_URL)(
-    'Pickups Assignment Integration Tests (skipIf real DB available)',
-    () => {
-      it('two parallel requests: one wins with 201, one gets 409, zero partial rows', async () => {
-        const [res1, res2] = await Promise.all([
-          request(app)
-            .post(`/api/v1/pickups/${testPickupId}/assignments`)
-            .set('Authorization', 'Bearer token')
-            .set('Idempotency-Key', 'parallel-key-1')
-            .send(validAssignmentPayload),
-          request(app)
-            .post(`/api/v1/pickups/${testPickupId}/assignments`)
-            .set('Authorization', 'Bearer token')
-            .set('Idempotency-Key', 'parallel-key-2')
-            .send(validAssignmentPayload),
-        ]);
-
-        const statuses = [res1.status, res2.status].sort();
-        expect(statuses).toEqual([201, 409]);
-      });
-
-      it('driver who is also a volunteer inserts deduplicated person reservation in real DB', async () => {
-        const res = await request(app)
-          .post(`/api/v1/pickups/${testPickupId}/assignments`)
-          .set('Authorization', 'Bearer token')
-          .set('Idempotency-Key', 'shared-driver-vol-key')
-          .send({
-            ...validAssignmentPayload,
-            volunteerIds: [testVolunteerId1],
-            driverId: testDriverId,
-          });
-
-        expect([201, 409]).toContain(res.status);
-      });
-
-      it('vehicle in maintenance is rejected with 409 RESOURCE_CONFLICT', async () => {
-        const res = await request(app)
-          .post(`/api/v1/pickups/${testPickupId}/assignments`)
-          .set('Authorization', 'Bearer token')
-          .set('Idempotency-Key', 'maintenance-key')
-          .send({
-            ...validAssignmentPayload,
-            vehicleId: testVehicleId,
-          });
-
-        expect([404, 409]).toContain(res.status);
-      });
-
-      it('idempotent replay returns stored assignment', async () => {
-        const first = await request(app)
-          .post(`/api/v1/pickups/${testPickupId}/assignments`)
-          .set('Authorization', 'Bearer token')
-          .set('Idempotency-Key', 'replay-key-1')
-          .send(validAssignmentPayload);
-
-        const replay = await request(app)
-          .post(`/api/v1/pickups/${testPickupId}/assignments`)
-          .set('Authorization', 'Bearer token')
-          .set('Idempotency-Key', 'replay-key-1')
-          .send(validAssignmentPayload);
-
-        expect([200, 201]).toContain(replay.status);
-        if (first.status === 201) {
-          expect(replay.body.data.id).toBe(first.body.data.id);
-        }
-      });
-    }
-  );
 
   describe('Pickup Status Transitions & Volunteer Assignments API (PR3)', () => {
     const pr3AssignmentId = 'a3333333-3333-4000-8000-000000000001';
