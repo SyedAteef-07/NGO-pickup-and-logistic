@@ -1,6 +1,6 @@
 import type { AppUser } from '@aaharaconnect/shared';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { apiRequest } from './client';
+import { ApiClientError, apiRequest } from './client';
 
 export function getCurrentAppUser(accessToken: string): Promise<AppUser> {
   return apiRequest<AppUser>('me', { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -48,6 +48,16 @@ export async function restoreAdminSession(): Promise<AppUser | null> {
     return null;
   }
   return user;
+}
+
+export async function getAdminAccessToken(): Promise<string | null> {
+  if (!isLiveAuthConfigured()) return null;
+  const { data, error } = await getAuthClient().auth.getSession();
+  if (error) throw error;
+  if (!data.session) return null;
+  const user = await getCurrentAppUser(data.session.access_token);
+  if (user.role !== 'ADMIN') throw new ApiClientError(403, 'FORBIDDEN', 'Administrator access is required.');
+  return data.session.access_token;
 }
 
 export async function signOutAdmin(): Promise<void> {
