@@ -125,4 +125,39 @@ export interface FoodRequestSummary {
   foods?: FoodItemSummary[]
   totalFeeds?: number
   isDemo?: boolean
+  pickup?: {
+    id: string
+    status: string
+    windowStartsAt: string
+    windowEndsAt: string
+    deliveryAddress: string
+    assignmentStatus?: string | null
+  } | null
+}
+
+export interface VehicleCandidateScore {
+  vehicleId: string
+  registrationNumber: string
+  kind: string
+  capacityKg: number
+  status: string
+  isEligible: boolean
+  isOverCapacity: boolean
+  suitabilityScore: number
+  rank: number
+  reasons: string[]
+  constraints: string[]
+}
+
+export interface VolunteerCandidateScore {
+  volunteerId: string
+  name: string
+  role?: string
+  skills: string[]
+  status: string
+  isEligible: boolean
+  suitabilityScore: number
+  rank: number
+  reasons: string[]
+  constraints: string[]
 }

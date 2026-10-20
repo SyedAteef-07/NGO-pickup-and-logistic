@@ -2,8 +2,10 @@ import type {
   AiLogisticsAssessment,
   ContainerPlan,
   FoodItemSummary,
+  VehicleCandidateScore,
   VehicleRecommendation,
   VesselRecommendation,
+  VolunteerCandidateScore,
 } from './types'
 
 export function calculateAiLogistics(
@@ -204,4 +206,268 @@ export function getContainerPlansFromAi(assessment: AiLogisticsAssessment): Cont
     count: v.count,
     estimatedLoadKg: Math.round(assessment.totalEstimatedWeightKg / assessment.vessels.length),
   }))
+}
+
+export interface VehiclePickupRequirement {
+  totalEstimatedWeightKg: number
+  totalVessels?: number
+  foodTypes?: string[]
+}
+
+/**
+ * Deterministic multi-criteria scoring algorithm to rank candidate vehicles
+ * based on verified payload capacity, operational status, and vessel profile.
+ */
+export function rankVehiclesForPickup(
+  vehicles: any[],
+  requirement: VehiclePickupRequirement
+): {
+  ranked: VehicleCandidateScore[]
+  suitable: VehicleCandidateScore[]
+  bestVehicle: VehicleCandidateScore | null
+  noCandidatesReason?: string
+} {
+  const loadKg = Math.max(1, requirement.totalEstimatedWeightKg || 10)
+  const vesselCount = requirement.totalVessels || 2
+
+  const scored: VehicleCandidateScore[] = vehicles.map(v => {
+    const vehicleId = String(v.vehicleId || v.id || '')
+    const registrationNumber = String(v.registrationNumber || v.reg || vehicleId)
+    const kind = String(v.kind || v.type || 'Standard Vehicle')
+    const capacityKg = Number(v.capacityKg || v.capacity || 0)
+    const status = String(v.status || 'ACTIVE').toUpperCase()
+    const maxVessels = v.indicativeMaxVessels != null ? Number(v.indicativeMaxVessels) : undefined
+
+    const reasons: string[] = []
+    const constraints: string[] = []
+
+    let isEligible = true
+    let isOverCapacity = false
+
+    // 1. Availability check from schema status ('ACTIVE', 'MAINTENANCE', 'RETIRED')
+    if (status !== 'ACTIVE') {
+      isEligible = false
+      constraints.push(`Vehicle status is ${status} (must be ACTIVE for dispatch).`)
+    }
+
+    // 2. Capacity check
+    if (capacityKg < loadKg) {
+      isEligible = false
+      isOverCapacity = true
+      constraints.push(
+        `Over-capacity: vehicle payload capacity (${capacityKg} kg) cannot carry estimated load (${loadKg} kg). Deficit: ${loadKg - capacityKg} kg.`
+      )
+    }
+
+    // 3. Indicative vessels check if present
+    if (maxVessels != null && maxVessels < vesselCount) {
+      constraints.push(
+        `Vessel space constraint: vehicle specification accommodates ${maxVessels} vessels (${vesselCount} required).`
+      )
+    }
+
+    if (!isEligible) {
+      return {
+        vehicleId,
+        registrationNumber,
+        kind,
+        capacityKg,
+        status,
+        isEligible: false,
+        isOverCapacity,
+        suitabilityScore: 0,
+        rank: 999,
+        reasons,
+        constraints,
+      }
+    }
+
+    // Score calculation for eligible vehicles (0-100 deterministic scoring algorithm)
+    let score = 70
+    const marginKg = capacityKg - loadKg
+
+    // Utilization evaluation:
+    if (loadKg <= 25) {
+      // Small load: prefer smaller/EV vehicles
+      if (kind.toLowerCase().includes('two') || kind.toLowerCase().includes('scooter') || kind.toLowerCase().includes('ev')) {
+        score += 25
+        reasons.push(`Optimal agility: compact EV vehicle maneuvers through urban traffic with zero emissions for ${loadKg} kg load.`)
+      } else if (kind.toLowerCase().includes('3') || kind.toLowerCase().includes('auto')) {
+        score += 18
+        reasons.push(`Stable urban transport with ample ${marginKg} kg payload margin.`)
+      } else {
+        score += 8
+        reasons.push(`High capacity headroom (${marginKg} kg buffer), though slightly oversized for a ${loadKg} kg load.`)
+      }
+    } else if (loadKg <= 120) {
+      // Medium load: 3-wheeler auto is ideal
+      if (kind.toLowerCase().includes('3') || kind.toLowerCase().includes('auto')) {
+        score += 28
+        reasons.push(`Ideal fit: flatbed cargo auto easily handles ${loadKg} kg load with ${marginKg} kg buffer.`)
+      } else if (kind.toLowerCase().includes('truck') || kind.toLowerCase().includes('ace')) {
+        score += 20
+        reasons.push(`Mini truck provides safe, stable loading bed with ${marginKg} kg buffer.`)
+      } else {
+        score += 10
+        reasons.push(`Cargo van safely carries ${loadKg} kg load.`)
+      }
+    } else if (loadKg <= 500) {
+      // Large load: Mini truck (Tata Ace) is ideal
+      if (kind.toLowerCase().includes('truck') || kind.toLowerCase().includes('ace')) {
+        score += 28
+        reasons.push(`Optimal payload fit: flatbed mini truck safely carries ${loadKg} kg bulk load (${marginKg} kg buffer).`)
+      } else {
+        score += 20
+        reasons.push(`Large commercial cargo hold safely accommodates bulk food rescue load.`)
+      }
+    } else {
+      // Heavy banquet load: Refrigerated van or heavy truck
+      score += 25
+      reasons.push(`Heavy payload capability: safely transports ${loadKg} kg community banquet volume (${marginKg} kg buffer).`)
+    }
+
+    reasons.push(`Verified active vehicle with valid payload capacity of ${capacityKg} kg.`)
+
+    return {
+      vehicleId,
+      registrationNumber,
+      kind,
+      capacityKg,
+      status,
+      isEligible: true,
+      isOverCapacity: false,
+      suitabilityScore: Math.min(100, score),
+      rank: 1,
+      reasons,
+      constraints,
+    }
+  })
+
+  // Sort: eligible candidates by score DESC, then ineligible candidates
+  scored.sort((a, b) => {
+    if (a.isEligible && !b.isEligible) return -1
+    if (!a.isEligible && b.isEligible) return 1
+    return b.suitabilityScore - a.suitabilityScore
+  })
+
+  scored.forEach((c, idx) => {
+    c.rank = idx + 1
+  })
+
+  const suitable = scored.filter(c => c.isEligible)
+  const bestVehicle = suitable.length > 0 ? suitable[0] : null
+  const noCandidatesReason =
+    suitable.length === 0
+      ? `No available vehicles meet the required payload capacity of ${loadKg} kg.`
+      : undefined
+
+  return { ranked: scored, suitable, bestVehicle, noCandidatesReason }
+}
+
+export interface VolunteerPickupRequirement {
+  totalEstimatedWeightKg?: number
+  foods?: FoodItemSummary[]
+}
+
+/**
+ * Deterministic multi-criteria scoring algorithm to rank candidate volunteers
+ * based on operational availability, active roster status, and food rescue skills.
+ */
+export function rankVolunteersForPickup(
+  volunteers: any[],
+  requirement: VolunteerPickupRequirement
+): {
+  ranked: VolunteerCandidateScore[]
+  suitable: VolunteerCandidateScore[]
+  bestVolunteer: VolunteerCandidateScore | null
+  noCandidatesReason?: string
+} {
+  const loadKg = requirement.totalEstimatedWeightKg || 10
+
+  const scored: VolunteerCandidateScore[] = volunteers.map(v => {
+    const volunteerId = String(v.volunteerId || v.id || '')
+    const name = String(v.name || v.fullName || volunteerId)
+    const role = v.role ? String(v.role) : undefined
+    const skills: string[] = Array.isArray(v.skills) ? v.skills : []
+    const status = String(v.status || 'ACTIVE').toUpperCase()
+
+    const reasons: string[] = []
+    const constraints: string[] = []
+
+    let isEligible = true
+
+    if (status !== 'ACTIVE') {
+      isEligible = false
+      constraints.push('Volunteer is currently INACTIVE in roster.')
+    }
+
+    if (!isEligible) {
+      return {
+        volunteerId,
+        name,
+        role,
+        skills,
+        status,
+        isEligible: false,
+        suitabilityScore: 0,
+        rank: 999,
+        reasons,
+        constraints,
+      }
+    }
+
+    let score = 75
+
+    const skillsLower = skills.map(s => s.toLowerCase())
+    const roleLower = (role || '').toLowerCase()
+
+    if (skillsLower.some(s => s.includes('food') || s.includes('handling') || s.includes('safety'))) {
+      score += 15
+      reasons.push('Trained in hygienic food safety inspection and container handling.')
+    }
+
+    if (loadKg >= 30 && skillsLower.some(s => s.includes('heavy') || s.includes('lift') || s.includes('physical'))) {
+      score += 10
+      reasons.push(`Equipped for heavy container lifting (${loadKg} kg total load).`)
+    }
+
+    if (roleLower.includes('pickup') || roleLower.includes('rescue')) {
+      score += 5
+      reasons.push('Experienced food rescue pickup volunteer.')
+    }
+
+    reasons.push('Active volunteer available for scheduled pickup window.')
+
+    return {
+      volunteerId,
+      name,
+      role,
+      skills,
+      status,
+      isEligible: true,
+      suitabilityScore: Math.min(100, score),
+      rank: 1,
+      reasons,
+      constraints,
+    }
+  })
+
+  scored.sort((a, b) => {
+    if (a.isEligible && !b.isEligible) return -1
+    if (!a.isEligible && b.isEligible) return 1
+    return b.suitabilityScore - a.suitabilityScore
+  })
+
+  scored.forEach((c, idx) => {
+    c.rank = idx + 1
+  })
+
+  const suitable = scored.filter(c => c.isEligible)
+  const bestVolunteer = suitable.length > 0 ? suitable[0] : null
+  const noCandidatesReason =
+    suitable.length === 0
+      ? 'No active volunteers are currently available in the roster.'
+      : undefined
+
+  return { ranked: scored, suitable, bestVolunteer, noCandidatesReason }
 }

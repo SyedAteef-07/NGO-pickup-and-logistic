@@ -126,3 +126,16 @@ export const getVolunteerAssignmentsHandler: RequestHandler = async (_request, r
   }
 };
 
+export const getActiveAssignmentHandler: RequestHandler = async (request, response, next) => {
+  try {
+    const idResult = uuidSchema.safeParse(request.params.id);
+    if (!idResult.success) {
+      throw new HttpError(400, 'VALIDATION_ERROR', 'Pickup ID must be a UUID.');
+    }
+
+    const assignment = await pickupService.getActiveAssignmentForPickup(idResult.data);
+    sendSuccess(response, assignment);
+  } catch (error) {
+    next(error);
+  }
+};

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { Pool, type PoolClient } from 'pg';
 import { env } from '../config/env';
 import { HttpError } from '../middleware/errorHandler';
@@ -8,12 +8,29 @@ let pool: Pool | undefined;
 export function getPool(): Pool {
   if (!env.databaseUrl) throw new HttpError(503, 'SERVICE_UNAVAILABLE', 'Database is not configured.');
   if (!pool) {
+    let caCert: string | undefined;
+    if (env.databaseSsl && env.databaseSslCaPath) {
+      if (!existsSync(env.databaseSslCaPath)) {
+        throw new HttpError(503, 'SERVICE_UNAVAILABLE', 'Database SSL CA file not found at configured path.');
+      }
+      caCert = readFileSync(env.databaseSslCaPath, 'utf8');
+    }
+
     pool = new Pool({
       connectionString: env.databaseUrl,
       max: 10,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
-      ssl: env.databaseSsl ? { rejectUnauthorized: true, ...(env.databaseSslCaPath ? { ca: readFileSync(env.databaseSslCaPath, 'utf8') } : {}) } : undefined,
+      ssl: env.databaseSsl ? { rejectUnauthorized: true, ...(caCert ? { ca: caCert } : {}) } : undefined,
+    });
+
+    pool.on('error', (error) => {
+      console.error(JSON.stringify({
+        level: 'error',
+        kind: 'PoolIdleError',
+        message: 'Unexpected error on idle database client',
+        reason: error instanceof Error ? error.message : 'unknown',
+      }));
     });
   }
   return pool;

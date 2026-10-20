@@ -11,5 +11,11 @@ healthRouter.get('/ready', async (_request, response, next) => {
   try {
     await getPool().query('SELECT 1');
     sendSuccess(response, { status: 'ready' });
-  } catch (_error) { next(new HttpError(503, 'SERVICE_UNAVAILABLE', 'Database is not ready.')); }
+  } catch (error) {
+    if (error instanceof HttpError) {
+      next(error);
+      return;
+    }
+    next(new HttpError(503, 'SERVICE_UNAVAILABLE', 'Database is not ready.'));
+  }
 });

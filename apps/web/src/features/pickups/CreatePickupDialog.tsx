@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Modal } from '../../components/common/UI'
 import { isLiveAdmin, map409ErrorMessage } from './adapters'
 import { calculateAiLogistics } from './aiLogistics'
-import { createPickup } from './api'
+import { createPickup, reviewFoodSafety } from './api'
 import { saveDemoPickup, useFoodRequests } from './hooks'
 import type { Pickup } from './types'
 
@@ -54,11 +54,40 @@ export function CreatePickupDialog({ onClose, onSuccess, notify }: Props) {
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [safetyReviews, setSafetyReviews] = useState<Record<string, string>>({})
+  const [approvingSafety, setApprovingSafety] = useState(false)
+
+  const currentSafetyReview = safetyReviews[foodRequestId] || selectedRequest?.safetyReview || 'APPROVED'
+
+  const handleApproveSafety = async () => {
+    if (!foodRequestId) return
+    setApprovingSafety(true)
+    setError(null)
+    try {
+      if (isLiveAdmin()) {
+        await reviewFoodSafety(foodRequestId, 'APPROVED')
+      }
+      setSafetyReviews(prev => ({ ...prev, [foodRequestId]: 'APPROVED' }))
+      notify('Food safety review approved.')
+    } catch (err: unknown) {
+      const msg = map409ErrorMessage(err)
+      setError(msg)
+      notify(msg, 'error')
+    } finally {
+      setApprovingSafety(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!foodRequestId || !deliveryAddress.trim()) {
       notify('Please fill in all required fields.', 'error')
+      return
+    }
+    if (isLiveAdmin() && currentSafetyReview !== 'APPROVED') {
+      const msg = 'Food request safety review must be APPROVED before scheduling a pickup. Please click "Approve Safety".'
+      setError(msg)
+      notify(msg, 'error')
       return
     }
     setSubmitting(true)
@@ -141,12 +170,62 @@ export function CreatePickupDialog({ onClose, onSuccess, notify }: Props) {
             disabled={loadingRequests}
           >
             {foodRequests.map(fr => (
-              <option key={fr.id} value={fr.id}>
-                {`${fr.donorName} (${fr.location})`}
+              <option key={fr.id} value={fr.id} disabled={!!fr.pickup}>
+                {`${fr.donorName} (${fr.location})${fr.pickup ? ' — Already Scheduled' : fr.safetyReview === 'PENDING' ? ' — Safety Review Pending' : ''}`}
               </option>
             ))}
           </select>
         </label>
+
+        {currentSafetyReview === 'PENDING' ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.65rem 0.85rem',
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: '8px',
+              gap: '0.5rem',
+            }}
+          >
+            <div>
+              <strong style={{ color: '#92400e', fontSize: '0.85rem' }}>
+                {'Food Safety Review: PENDING'}
+              </strong>
+              <p style={{ margin: '2px 0 0', color: '#b45309', fontSize: '0.78rem' }}>
+                {'Admin safety approval is required before scheduling pickup.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="button button-secondary"
+              style={{ fontSize: '0.8rem', padding: '4px 10px', height: 'auto', whiteSpace: 'nowrap' }}
+              disabled={approvingSafety}
+              onClick={handleApproveSafety}
+            >
+              {approvingSafety ? 'Approving…' : 'Approve Safety'}
+            </button>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              color: '#047857',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              padding: '0.4rem 0.75rem',
+              borderRadius: '6px',
+            }}
+          >
+            <span>{'✓ Food Safety Review: APPROVED'}</span>
+          </div>
+        )}
 
         {/* AI Logistics Preview Card */}
         <div

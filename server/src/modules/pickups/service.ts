@@ -480,3 +480,36 @@ export async function cancelForFoodRequest(
   return toPickupDto(updatedPickup);
 }
 
+export async function getActiveAssignmentForPickup(
+  pickupId: string,
+  client?: PoolClient
+): Promise<Assignment | null> {
+  const pickup = await pickupRepository.findById(pickupId, client);
+  if (!pickup) {
+    throw new HttpError(404, 'NOT_FOUND', 'Pickup not found.');
+  }
+
+  const activeAssignments = await pickupRepository.findActiveAssignmentsByPickupId(pickupId, client);
+  if (activeAssignments.length === 0) {
+    return null;
+  }
+
+  if (activeAssignments.length > 1) {
+    throw new HttpError(
+      500,
+      'INTERNAL_ERROR',
+      `Data invariant violation: pickup ${pickupId} has ${activeAssignments.length} active assignments.`
+    );
+  }
+
+  const assignmentRow = activeAssignments[0];
+  const volunteerIds = await pickupRepository.getAssignmentVolunteerIds(assignmentRow.id, client);
+  return toAssignmentDto(assignmentRow, volunteerIds);
+}
+export async function getPickupByFoodRequestId(
+  foodRequestId: string,
+  client?: PoolClient
+): Promise<PickupDetail | null> {
+  const row = await pickupRepository.findByFoodRequestId(foodRequestId, client);
+  return row ? toPickupDto(row) : null;
+}

@@ -503,3 +503,36 @@ export async function findActiveAssignmentByPickupIdForUpdate(
   }
 }
 
+export const ACTIVE_ASSIGNMENT_STATUSES: readonly AssignmentStatus[] = [
+  'PENDING',
+  'ACCEPTED',
+  'EN_ROUTE',
+  'ARRIVED_AT_DONOR',
+  'FOOD_COLLECTED',
+] as const;
+
+export const TERMINAL_ASSIGNMENT_STATUSES: readonly AssignmentStatus[] = [
+  'DELIVERED',
+  'REJECTED',
+  'CANCELLED',
+  'FAILED',
+] as const;
+
+export async function findActiveAssignmentsByPickupId(
+  pickupId: string,
+  client?: PoolClient
+): Promise<AssignmentRow[]> {
+  const db = client ?? getPool();
+  try {
+    const result = await db.query<AssignmentRow>(
+      `SELECT id, pickup_id, team_id, driver_id, vehicle_id, role, status, version, created_at
+       FROM app.assignments
+       WHERE pickup_id = $1 AND status = ANY($2::text[])
+       ORDER BY created_at ASC`,
+      [pickupId, [...ACTIVE_ASSIGNMENT_STATUSES]]
+    );
+    return result.rows;
+  } catch (error) {
+    handleDbError(error);
+  }
+}

@@ -24,6 +24,21 @@ describe('API foundation', () => {
     expect(result.body.data.status).toBe('ok');
   });
 
+  it('reports readiness when database connection succeeds', async () => {
+    query.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+    const result = await request(app).get('/api/v1/health/ready');
+    expect(result.status).toBe(200);
+    expect(result.body.data.status).toBe('ready');
+  });
+
+  it('reports 503 SERVICE_UNAVAILABLE when database query fails without exposing internal error', async () => {
+    query.mockRejectedValueOnce(new Error('Connection lost'));
+    const result = await request(app).get('/api/v1/health/ready');
+    expect(result.status).toBe(503);
+    expect(result.body.error.code).toBe('SERVICE_UNAVAILABLE');
+    expect(result.body.error.message).toBe('Database is not ready.');
+  });
+
   it('rejects missing bearer tokens', async () => {
     const result = await request(app).get('/api/v1/me');
     expect(result.status).toBe(401);
