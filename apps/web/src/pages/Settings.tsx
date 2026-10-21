@@ -55,7 +55,7 @@ function CoordinatorAuth({ onAdminSignIn }: { onAdminSignIn: () => void }) {
           <button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
         </form>}
     {message && <p className="settings-auth-message" role="status">{message}</p>}
-    <div className="settings-note"><Info size={17}/><span>Volunteer, team and assignment records remain demo data.</span></div>
+    <div className="settings-note"><Info size={17}/><span>Volunteer and team lists load live after administrator sign-in. Assignment changes remain demo data.</span></div>
   </section>
 }
 

@@ -16,6 +16,7 @@ export function LoginScreen({ role }: { role: Exclude<Role, null> }) {
     app.login(role);
   };
   const submitLive = async () => {
+    if (!isLiveAuthConfigured()) { app.notify('Live sign-in is not configured. Use demo account.'); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) { app.notify('Use your email address to sign in.'); return; }
     if (password.length < 4) { app.notify('Password must have at least 4 characters.'); return; }
     setBusy(true);
@@ -37,8 +38,8 @@ export function LoginScreen({ role }: { role: Exclude<Role, null> }) {
     <Card style={{ padding: 22 }}><View style={{ width: 54, height: 54, borderRadius: 15, backgroundColor: C.greenSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}><Icon name={role === 'volunteer' ? 'team' : 'food'} size={28} /></View>
       <Field label="Email or phone number" value={identifier} onChangeText={setIdentifier} autoCapitalize="none" keyboardType="email-address" />
       <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry />
-      <Button title="Sign in" onPress={() => submit()} disabled={busy} style={{ marginTop: 6 }} />
-      {isLiveAuthConfigured() && <Button title="Sign in to shared API" onPress={() => { void submitLive(); }} loading={busy} disabled={busy} variant="outline" style={{ marginTop: 8 }} />}
+      <Button title="Sign in" onPress={() => { if (role === 'volunteer') void submitLive(); else submit(); }} loading={role === 'volunteer' && busy} disabled={busy} style={{ marginTop: 6 }} />
+      {role === 'donor' && isLiveAuthConfigured() && <Button title="Sign in to shared API" onPress={() => { void submitLive(); }} loading={busy} disabled={busy} variant="outline" style={{ marginTop: 8 }} />}
       <Button title="Use demo account" onPress={() => submit(true)} disabled={busy} variant="quiet" style={{ marginTop: 8 }} />
     </Card><T size={13} color={C.muted} style={{ textAlign: 'center', marginTop: 22 }}>Together, less food waste.</T>
   </Screen>;

@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
-import { apiRequest } from './client';
+import { ApiClientError, apiRequest } from './client';
 
 export function getCurrentAppUser(accessToken: string): Promise<AppUser> {
   return apiRequest<AppUser>('me', { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -57,6 +57,15 @@ export async function restoreAppUser(): Promise<AppUser | null> {
   const { data, error } = await auth.auth.getSession();
   if (error || !data.session) return null;
   return getCurrentAppUser(data.session.access_token);
+}
+
+/** The API validates this session token and resolves the application role itself. */
+export async function getCurrentAccessToken(): Promise<string> {
+  if (!isLiveAuthConfigured()) throw new ApiClientError(0, 'MISSING_AUTH_CONFIG', 'Live sign-in is not configured.');
+  const { data, error } = await getAuthClient().auth.getSession();
+  if (error) throw error;
+  if (!data.session?.access_token) throw new ApiClientError(401, 'UNAUTHENTICATED', 'Sign in again to continue.');
+  return data.session.access_token;
 }
 
 export async function signOut(): Promise<void> {
