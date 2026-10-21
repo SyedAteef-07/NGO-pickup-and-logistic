@@ -28,9 +28,16 @@ export function LoginScreen({ role }: { role: Exclude<Role, null> }) {
         return;
       }
       app.loginAuthenticated(role);
-    } catch {
-      app.notify('Sign in failed. Check your account and try again.');
-    } finally { setBusy(false); }
+    } catch (error) {
+  console.error('Live sign-in failed:', error);
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : 'Unknown sign-in error';
+
+  app.notify(`Sign in failed: ${message}`);
+}finally { setBusy(false); }
   };
   if (app.role === role) return <Redirect href={role === 'volunteer' ? '/volunteer/(tabs)/home' : '/donor/(tabs)/home'} />;
   return <Screen style={{ justifyContent: 'center' }}><View style={{ alignItems: 'flex-end', marginBottom: 24 }}><LanguageSwitcher /></View>
