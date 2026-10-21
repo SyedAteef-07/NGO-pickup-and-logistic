@@ -2,9 +2,9 @@ import { ArrowLeft, ArrowRight, Check, ShieldAlert, Sparkles, Truck } from 'luci
 import { useMemo, useState } from 'react'
 import { Modal } from '../../components/common/UI'
 import { isLiveAdmin, map409ErrorMessage } from './adapters'
-import { calculateAiLogistics } from './aiLogistics'
+import { calculateAiLogistics, rankVehiclesForPickup, rankVolunteersForPickup } from './aiLogistics'
 import { createAssignment } from './api'
-import { updateDemoPickupStatus, useAssignWizardResources } from './hooks'
+import { saveDemoAssignment, updateDemoPickupStatus, useAssignWizardResources } from './hooks'
 import type { LiveAssignment, Pickup } from './types'
 
 interface Props {
@@ -79,10 +79,32 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
   const activeDrivers = drivers.length > 0 ? drivers : demoDriversFallback
   const activeVehicles = vehicles.length > 0 ? vehicles : demoVehiclesFallback
 
+  const volunteerRanking = useMemo(
+    () =>
+      rankVolunteersForPickup(activeVolunteers, {
+        totalEstimatedWeightKg: Number(estimatedLoadKg),
+        foods: pickup.foods,
+      }),
+    [activeVolunteers, estimatedLoadKg, pickup.foods]
+  )
+
+  const vehicleRanking = useMemo(
+    () =>
+      rankVehiclesForPickup(activeVehicles, {
+        totalEstimatedWeightKg: Number(estimatedLoadKg),
+        totalVessels: Number(containerCount),
+      }),
+    [activeVehicles, estimatedLoadKg, containerCount]
+  )
+
   const canContinue = () => {
     if (step === 0) return selectedVolunteerIds.length > 0
     if (step === 1) return !!selectedDriverId
-    if (step === 2) return !!selectedVehicleId
+    if (step === 2) {
+      if (!selectedVehicleId) return false
+      const chosen = vehicleRanking.ranked.find(v => v.vehicleId === selectedVehicleId)
+      return chosen ? chosen.isEligible : true
+    }
     if (step === 3) return containerCount > 0
     return true
   }
@@ -133,6 +155,7 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
           driverId: selectedDriverId,
           vehicleId: selectedVehicleId,
         }
+        saveDemoAssignment(demoAssignment)
         updateDemoPickupStatus(pickup.id, 'ASSIGNED')
         notify('Assignment created successfully.')
         onSuccess(demoAssignment)
@@ -182,26 +205,85 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
               </div>
               {waitingTeam1 && volunteers.length === 0 ? (
                 <div className="wizard-tip" style={{ marginBottom: '1rem' }}>
-                  <strong>Waiting for Team 1 API</strong>
+                  <strong>{waitingTeam1}</strong>
                 </div>
               ) : null}
+              {volunteerRanking.noCandidatesReason && (
+                <div className="wizard-tip error-tip" style={{ color: '#b91c1c', marginBottom: '1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.75rem' }}>
+                  <ShieldAlert size={16} /> {volunteerRanking.noCandidatesReason}
+                </div>
+              )}
               <div className="choice-grid two-col">
-                {activeVolunteers.map((vol: any) => {
-                  const id = vol.volunteerId || vol.id
-                  const name = vol.name || vol.fullName || id
+                {volunteerRanking.ranked.map(vol => {
+                  const id = vol.volunteerId
+                  const name = vol.name
                   const isSelected = selectedVolunteerIds.includes(id)
+                  const isRecommended = vol.isEligible && vol.rank <= 2
                   return (
                     <button
                       key={id}
                       type="button"
                       className={`choice-card ${isSelected ? 'selected' : ''}`}
+                      disabled={!vol.isEligible}
+                      style={{
+                        opacity: vol.isEligible ? 1 : 0.6,
+                        cursor: vol.isEligible ? 'pointer' : 'not-allowed',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        gap: '4px',
+                        textAlign: 'left',
+                      }}
                       onClick={() => {
+                        if (!vol.isEligible) return
                         setSelectedVolunteerIds(prev =>
                           isSelected ? prev.filter(x => x !== id) : [...prev, id]
                         )
                       }}
                     >
-                      <strong>{name}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <strong>{name}</strong>
+                        {isRecommended && (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background: '#ecfdf5',
+                              color: '#065f46',
+                              border: '1px solid #a7f3d0',
+                              padding: '2px 6px',
+                              borderRadius: '999px',
+                            }}
+                          >
+                            {`⭐ Match ${vol.suitabilityScore}%`}
+                          </span>
+                        )}
+                        {!vol.isEligible && (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background: '#fee2e2',
+                              color: '#991b1b',
+                              border: '1px solid #fecaca',
+                              padding: '2px 6px',
+                              borderRadius: '999px',
+                            }}
+                          >
+                            Unavailable
+                          </span>
+                        )}
+                      </div>
+                      {vol.reasons.length > 0 && (
+                        <small style={{ color: '#047857', fontSize: '0.74rem' }}>
+                          ✓ {vol.reasons[0]}
+                        </small>
+                      )}
+                      {vol.constraints.length > 0 && (
+                        <small style={{ color: '#b91c1c', fontSize: '0.74rem' }}>
+                          ✕ {vol.constraints[0]}
+                        </small>
+                      )}
                     </button>
                   )
                 })}
@@ -217,7 +299,7 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
               </div>
               {waitingTeam5Drivers && drivers.length === 0 ? (
                 <div className="wizard-tip" style={{ marginBottom: '1rem' }}>
-                  <strong>Waiting for Team 5 API</strong>
+                  <strong>{waitingTeam5Drivers}</strong>
                 </div>
               ) : null}
               <div className="choice-grid two-col">
@@ -233,6 +315,11 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
                       onClick={() => setSelectedDriverId(id)}
                     >
                       <strong>{name}</strong>
+                      {drv.licenceNumber && (
+                        <small style={{ color: '#64748b', display: 'block', marginTop: '2px' }}>
+                          {`Licence: ${drv.licenceNumber}`}
+                        </small>
+                      )}
                     </button>
                   )
                 })}
@@ -244,10 +331,10 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
             <>
               <div className="wizard-title">
                 <h3>Select Vehicle</h3>
-                <p>Choose an active vehicle with sufficient capacity.</p>
+                <p>{'Choose an active vehicle with sufficient payload capacity.'}</p>
               </div>
 
-              {/* AI Vehicle Recommendation Banner */}
+              {/* Vehicle Logistics Recommendation Banner */}
               <div
                 style={{
                   background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)',
@@ -263,40 +350,117 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
                 <Sparkles size={18} style={{ color: '#059669', flexShrink: 0, marginTop: '2px' }} />
                 <div style={{ fontSize: '0.85rem' }}>
                   <div style={{ fontWeight: 700, color: '#065f46' }}>
-                    AI Logistics Recommendation
+                    {'Logistics Recommendation (Scoring Algorithm)'}
                   </div>
                   <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <Truck size={15} style={{ color: '#059669' }} />
-                    <span>{`${aiAssessment.vehicle.vehicleType} (${aiAssessment.vehicle.suitabilityScore}% match)`}</span>
+                    <span>{vehicleRanking.bestVehicle ? `${vehicleRanking.bestVehicle.kind} (${vehicleRanking.bestVehicle.registrationNumber}) · ${vehicleRanking.bestVehicle.suitabilityScore}% match` : `${aiAssessment.vehicle.vehicleType} (Estimated Profile)`}</span>
                   </div>
                   <p style={{ margin: '3px 0 0', color: '#475569', fontSize: '0.8rem' }}>
-                    {aiAssessment.vehicle.reason}
+                    {vehicleRanking.bestVehicle?.reasons[0] || aiAssessment.vehicle.reason}
                   </p>
                 </div>
               </div>
 
               {waitingTeam5Vehicles && vehicles.length === 0 ? (
                 <div className="wizard-tip" style={{ marginBottom: '1rem' }}>
-                  <strong>Waiting for Team 5 API</strong>
+                  <strong>{waitingTeam5Vehicles}</strong>
                 </div>
               ) : null}
 
+              {vehicleRanking.noCandidatesReason && (
+                <div className="wizard-tip error-tip" style={{ color: '#b91c1c', marginBottom: '1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.75rem' }}>
+                  <ShieldAlert size={16} /> {vehicleRanking.noCandidatesReason}
+                </div>
+              )}
+
               <div className="choice-grid two-col">
-                {activeVehicles.map((veh: any) => {
-                  const id = veh.vehicleId || veh.id
-                  const reg = veh.registrationNumber || veh.type || id
+                {vehicleRanking.ranked.map(veh => {
+                  const id = veh.vehicleId
+                  const reg = veh.registrationNumber
                   const isSelected = selectedVehicleId === id
+                  const isTopPick = veh.isEligible && veh.rank === 1
                   return (
                     <button
                       key={id}
                       type="button"
                       className={`choice-card ${isSelected ? 'selected' : ''}`}
-                      onClick={() => setSelectedVehicleId(id)}
+                      disabled={!veh.isEligible}
+                      style={{
+                        opacity: veh.isEligible ? 1 : 0.6,
+                        cursor: veh.isEligible ? 'pointer' : 'not-allowed',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        gap: '4px',
+                        textAlign: 'left',
+                      }}
+                      onClick={() => {
+                        if (!veh.isEligible) return
+                        setSelectedVehicleId(id)
+                      }}
                     >
-                      <strong>{reg}</strong>
-                      <small style={{ color: '#64748b', display: 'block', marginTop: '2px' }}>
-                        {veh.type ? `${veh.type} · ${veh.capacity} kg` : ''}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <strong>{reg}</strong>
+                        {isTopPick && (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background: '#ecfdf5',
+                              color: '#065f46',
+                              border: '1px solid #a7f3d0',
+                              padding: '2px 6px',
+                              borderRadius: '999px',
+                            }}
+                          >
+                            {`⭐ Top Pick · ${veh.suitabilityScore}%`}
+                          </span>
+                        )}
+                        {veh.isOverCapacity && (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background: '#fee2e2',
+                              color: '#991b1b',
+                              border: '1px solid #fecaca',
+                              padding: '2px 6px',
+                              borderRadius: '999px',
+                            }}
+                          >
+                            {'Over Capacity'}
+                          </span>
+                        )}
+                        {!veh.isEligible && !veh.isOverCapacity && (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background: '#fee2e2',
+                              color: '#991b1b',
+                              border: '1px solid #fecaca',
+                              padding: '2px 6px',
+                              borderRadius: '999px',
+                            }}
+                          >
+                            {veh.status}
+                          </span>
+                        )}
+                      </div>
+                      <small style={{ color: '#64748b', display: 'block', fontSize: '0.78rem' }}>
+                        {`${veh.kind} · Capacity: ${veh.capacityKg} kg`}
                       </small>
+                      {veh.reasons.length > 0 && (
+                        <small style={{ color: '#047857', fontSize: '0.73rem', marginTop: '2px' }}>
+                          ✓ {veh.reasons[0]}
+                        </small>
+                      )}
+                      {veh.constraints.length > 0 && (
+                        <small style={{ color: '#b91c1c', fontSize: '0.73rem', marginTop: '2px' }}>
+                          ✕ {veh.constraints[0]}
+                        </small>
+                      )}
                     </button>
                   )
                 })}

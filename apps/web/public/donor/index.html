@@ -118,12 +118,20 @@ body.dev .tag{display:inline-block}
 <header>
   <a class="brand" href="../"><img src="icon-192.png" alt="" width="40" height="40"><span><strong>Akshaya Ahar</strong><small>Share surplus food, feed more people</small></span></a>
   <div class="hdr-right">
-    <a href="../#/workspace?page=pickups" style="background:var(--leaf);color:#fff;padding:6px 14px;border-radius:999px;font-weight:600;font-size:0.85rem;text-decoration:none;display:flex;align-items:center;gap:6px">🚚 Open Pickup &amp; Logistics</a>
     <a class="home" href="../">Home</a>
     <button class="themebtn" id="themeBtn" aria-label="Switch light or dark mode"></button>
   </div>
 </header>
 <div class="app">
+  <!-- Mode Banner -->
+  <div id="modeBanner" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="modeDot" style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span>
+      <span id="modeLabel" style="font-size:0.85rem;font-weight:700;color:var(--leaf)">Live API Mode (Express + PostgreSQL)</span>
+    </div>
+    <button id="toggleModeBtn" type="button" class="secondary" style="padding:4px 10px;font-size:0.8rem;height:auto">Switch to Demo Mode</button>
+  </div>
+
   <div class="install" id="installBar" hidden>
     <p id="installText">Install Akshaya Ahar on your phone for quick access.</p>
     <button class="primary" id="installBtn" style="width:auto;margin:0">Install</button>
@@ -137,9 +145,9 @@ body.dev .tag{display:inline-block}
     <p class="lead">Register once, then donate leftover food from any event.</p>
     <div class="tabs"><button id="tabReg" class="on">Register</button><button id="tabLog">Log in</button></div>
     <div class="panel" id="regForm">
-      <label>Full name <span class="tag">name : String</span></label><input id="rName" autocomplete="name">
-      <label>Phone number <span class="tag">phone : String</span></label><input id="rPhone" inputmode="numeric" maxlength="10" placeholder="10-digit mobile">
-      <label>Address <span class="tag">address : String</span></label><input id="rAddr" autocomplete="street-address">
+      <label>Full name <span class="tag">name : String</span></label><input id="rName" autocomplete="name" placeholder="e.g. Ateef Syed">
+      <label>Phone number <span class="tag">phone : String</span></label><input id="rPhone" inputmode="numeric" maxlength="10" placeholder="10-digit mobile, e.g. 9876543210">
+      <label>Address <span class="tag">address : String</span></label><input id="rAddr" autocomplete="street-address" placeholder="e.g. 42 MG Road, Bengaluru">
       <label>Password</label><input id="rPass" type="password">
       <div class="err" id="rErr"></div>
       <button class="primary" id="btnReg">Register <span class="tag">register()</span></button>
@@ -150,6 +158,16 @@ body.dev .tag{display:inline-block}
       <div class="err" id="lErr"></div>
       <button class="primary" id="btnLog">Log in <span class="tag">login()</span></button>
     </div>
+
+    <!-- Live Auth Details Panel -->
+    <div class="panel" id="tokenPanel" style="margin-top:12px;background:var(--leaf-soft);border:1px solid var(--line)">
+      <label style="margin-top:0;font-size:0.85rem;color:var(--leaf);display:flex;justify-content:space-between">
+        <span>API Bearer Token</span>
+        <span id="tokenStatus" style="font-weight:400;color:var(--muted)">(Auto-detected)</span>
+      </label>
+      <input id="tokenInput" placeholder="Bearer access token for live API requests" style="font-size:0.8rem;font-family:monospace;margin-top:4px">
+      <p class="hint" style="font-size:0.75rem;margin:4px 0 0">Used to authenticate requests to <code>/api/v1/food-requests</code>. Auto-populated from your session if signed in.</p>
+    </div>
   </section>
 
   <!-- Screen 2: Function hall + GPS -->
@@ -158,7 +176,7 @@ body.dev .tag{display:inline-block}
     <p class="lead" id="hello"></p>
     <div class="panel">
       <label>Function hall name <span class="tag">hallName</span></label><input id="hName" placeholder="e.g. Sri Lakshmi Convention Hall">
-      <label>Hall address <span class="tag">hallAddress</span></label><input id="hAddr">
+      <label>Hall address <span class="tag">hallAddress</span></label><input id="hAddr" placeholder="e.g. 5th Block Koramangala, Bengaluru">
       <button class="ghost" id="btnGps" style="width:100%;margin-top:14px">Use my current location <span class="tag">fetchCurrentLocation()</span></button>
       <div class="loc" id="locBox" hidden></div>
       <details style="margin-top:10px"><summary class="hint" style="cursor:pointer">Enter coordinates manually</summary>
@@ -199,37 +217,93 @@ body.dev .tag{display:inline-block}
   <!-- Screen 4: Review -->
   <section id="s-review" hidden>
     <h1>Check and send</h1>
-    <p class="lead">Once sent, the pickup team will collect the food from the hall.</p>
+    <p class="lead">Once sent, the pickup team will review and collect the food from the hall.</p>
     <div class="panel"><dl class="summary" id="summary"></dl></div>
+    <div class="err" id="submitErr" style="font-weight:600"></div>
     <button class="primary" id="btnSubmit">Send for pickup <span class="tag">submitDonation()</span></button>
     <button class="secondary" id="backFood" style="width:100%;margin-top:8px">Edit food</button>
   </section>
 
   <!-- Screen 5: Status -->
   <section id="s-status" hidden>
+    <div id="liveBadgeContainer" style="margin-bottom:8px"></div>
     <h1 id="stTitle">Sent for pickup</h1>
     <p class="lead" id="stLead"></p>
     <div class="panel">
       <ol class="timeline" id="timeline"></ol>
-      <div class="ext"><b>Pickup Logistics</b> <span class="tag">«external module»</span><br>Handled by the pickup team. Driver and timing details will show here once they accept.
-        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-          <a href="../#/workspace?page=pickups" style="display:inline-block;padding:10px 18px;background:var(--leaf);color:#fff;border-radius:8px;font-weight:700;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,0.15)">Open in Pickup &amp; Logistics (View AI Recommendation &amp; Assign Crew) →</a>
-        </div>
+      <div class="ext"><b>Authoritative Backend Status</b><br>
+        <span id="authoritativeSubtext">Synchronized with Express and PostgreSQL backend.</span>
       </div>
     </div>
     <div class="btnrow" id="stBtns">
-      <button class="ghost" id="btnStatus">Check status <span class="tag">viewPickupStatus()</span></button>
+      <button class="ghost" id="btnStatus">Refresh status <span class="tag">viewPickupStatus()</span></button>
       <button class="danger" id="btnCancel">Cancel donation <span class="tag">cancelDonation()</span></button>
     </div>
     <button class="primary" id="btnNew">Donate again</button>
-    <a class="home" href="../#/workspace?page=pickups" style="display:block;text-align:center;margin-top:14px;font-weight:600;color:var(--leaf)">Go to Volunteer Workspace →</a>
-    <a class="home" href="../" style="display:block;text-align:center;margin-top:6px;font-size:0.85rem;color:var(--muted)">Back to home</a>
+    <a class="home" href="../" style="display:block;text-align:center;margin-top:14px;font-size:0.85rem;color:var(--muted)">Back to home</a>
   </section>
   <label class="devtoggle"><input type="checkbox" id="devToggle" style="width:auto"> Class names</label>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
+/* ===== Mode & API Configuration ===== */
+const API_BASE = (window.VITE_API_BASE_URL || (location.port === '5173' ? 'http://localhost:4000/api/v1' : '/api/v1')).replace(/\/+$/, '');
+let isLiveMode = localStorage.getItem('aa:donor-live-mode') !== '0';
+
+function getStoredToken() {
+  const custom = document.getElementById('tokenInput')?.value.trim();
+  if (custom) return custom;
+  const explicit = localStorage.getItem('aaharaconnect-donor-token') || sessionStorage.getItem('aaharaconnect-donor-token');
+  if (explicit) return explicit;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(k));
+        if (parsed?.access_token) return parsed.access_token;
+      } catch {}
+    }
+  }
+  return null;
+}
+
+function updateModeUI() {
+  const dot = document.getElementById('modeDot');
+  const label = document.getElementById('modeLabel');
+  const btn = document.getElementById('toggleModeBtn');
+  if (isLiveMode) {
+    if (dot) dot.style.background = '#10b981';
+    if (label) {
+      label.textContent = 'Live API Mode (Express + PostgreSQL)';
+      label.style.color = 'var(--leaf)';
+    }
+    if (btn) btn.textContent = 'Switch to Demo Mode';
+  } else {
+    if (dot) dot.style.background = '#f59e0b';
+    if (label) {
+      label.textContent = 'Demo Mode (Local Prototype)';
+      label.style.color = '#b45309';
+    }
+    if (btn) btn.textContent = 'Switch to Live API';
+  }
+}
+
+document.getElementById('toggleModeBtn').onclick = () => {
+  isLiveMode = !isLiveMode;
+  localStorage.setItem('aa:donor-live-mode', isLiveMode ? '1' : '0');
+  updateModeUI();
+  toast(isLiveMode ? 'Switched to Live API Mode' : 'Switched to Demo Mode (Local)');
+};
+updateModeUI();
+
+// Auto-detect token on startup
+const autoToken = getStoredToken();
+if (autoToken && document.getElementById('tokenInput')) {
+  document.getElementById('tokenInput').value = autoToken;
+  document.getElementById('tokenStatus').textContent = '(Session token found)';
+}
+
 /* ===== Model classes, following the class diagram ===== */
 const FoodType = Object.freeze({ VEG:"VEG", NON_VEG:"NON_VEG", SWEETS:"SWEETS", PACKAGED:"PACKAGED" });
 const TypeLabel = { VEG:"Veg", NON_VEG:"Non-veg", SWEETS:"Sweets", PACKAGED:"Packaged" };
@@ -253,7 +327,6 @@ class FunctionHall {
 }
 
 class FoodDetails {
-  // perPerson: serving size per person for each unit this item supports
   constructor(name, foodType, perPerson, unit){
     this.foodId = "F" + Math.random().toString(36).slice(2, 8);
     this.name = name; this.foodType = foodType; this.perPerson = perPerson;
@@ -263,14 +336,20 @@ class FoodDetails {
   setFoodType(type){ this.foodType = type; }
   peopleFed(){ return Math.floor(this.quantity / this.perPerson[this.unit]); }
   setFromPeople(n){ this.quantity = +(Math.max(0, n) * this.perPerson[this.unit]).toFixed(2); }
-  sendToPickup(){ return PickupLogistics.receive(this); }
 }
 
-/* External module – owned by another team, stubbed here */
-const PickupLogistics = { receive(){ return "Waiting for pickup team to accept"; } };
-
 class FoodDonor {
-  constructor(name, phone, address){ this.donorId = "D" + phone; this.name = name; this.phone = phone; this.address = address; this.halls = []; this.foods = []; this.status = null; }
+  constructor(name, phone, address){
+    this.donorId = "D" + phone;
+    this.name = name;
+    this.phone = phone;
+    this.address = address;
+    this.halls = [];
+    this.foods = [];
+    this.status = null;
+    this.liveRequestId = null;
+    this.submittedAt = new Date();
+  }
   static register(name, phone, address, password){
     const d = new FoodDonor(name, phone, address);
     Store.set("donor:" + phone, { name, phone, address, password });
@@ -283,12 +362,9 @@ class FoodDonor {
   }
   addFunctionHall(hallName, address, gps){ const h = new FunctionHall(hallName, address, gps); this.halls = [h]; return h; }
   addFoodDetails(name, foodType, perPerson, unit){ const f = new FoodDetails(name, foodType, perPerson, unit); this.foods.push(f); return f; }
-  submitDonation(){ this.status = this.foods.map(f => f.sendToPickup())[0]; this.submittedAt = new Date(); }
-  viewPickupStatus(){ return this.status; }
-  cancelDonation(){ if (this.status === "Cancelled") return false; this.status = "Cancelled"; return true; }
 }
 
-/* Small storage helper (falls back to memory if browser storage is blocked) */
+/* Small storage helper */
 const Store = (() => { const mem = {};
   return {
     get(k){ try { const v = localStorage.getItem("aa:" + k); return v ? JSON.parse(v) : (mem[k] || null); } catch { return mem[k] || null; } },
@@ -296,7 +372,7 @@ const Store = (() => { const mem = {};
   };
 })();
 
-/* Serving estimates per person (approximate) */
+/* Serving estimates per person */
 const PRESETS = [
   { name:"Rice",           type:"VEG",      per:{ kg:0.15 },             unit:"kg" },
   { name:"Veg biryani",    type:"VEG",      per:{ kg:0.25 },             unit:"kg" },
@@ -324,8 +400,8 @@ function show(id){
   [...$("steps").children].forEach((b, i) => b.classList.toggle("on", i <= step));
   window.scrollTo({ top:0 });
 }
-function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 2200); }
-function esc(s){ return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 2400); }
+function esc(s){ return String(s || '').replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
 
 /* Light / dark mode */
 function currentTheme(){ const t = document.documentElement.dataset.theme; return t || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); }
@@ -348,6 +424,7 @@ if (!standalone && /iphone|ipad|ipod/i.test(navigator.userAgent)) {
 $("installBtn").onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $("installBar").hidden = true; };
 $("installClose").onclick = () => $("installBar").hidden = true;
 window.addEventListener("appinstalled", () => { $("installBar").hidden = true; toast("Akshaya Ahar installed"); });
+
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
@@ -389,8 +466,17 @@ $("btnHall").onclick = () => {
   const hn = $("hName").value.trim(), ha = $("hAddr").value.trim();
   const la = parseFloat($("lat").value), lo = parseFloat($("lng").value);
   if (!hn || !ha) return $("hErr").textContent = "Enter the hall name and address.";
-  if (isNaN(la) || isNaN(lo)) return $("hErr").textContent = "Add the location: tap 'Use my current location' or enter coordinates.";
-  gps = new GPSLocation(la, lo);
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) {
+  $("hErr").textContent = "Enter valid latitude and longitude.";
+  return;
+}
+
+if (la < -90 || la > 90 || lo < -180 || lo > 180) {
+  $("hErr").textContent = "Latitude must be between -90 and 90, and longitude between -180 and 180.";
+  return;
+}
+
+gps = new GPSLocation(la, lo);
   donor.addFunctionHall(hn, ha, gps);
   $("hErr").textContent = "";
   const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -462,53 +548,131 @@ $("btnReview").onclick = () => {
   if (!filled.length) return $("fErr").textContent = "Add at least one item with a quantity.";
   $("fErr").textContent = "";
   donor.foods = filled; donor.preparedTime = $("prepTime").value;
-  const h = donor.halls[0];
+  const h = donor.halls[0] || {};
+  const latStr = h.gps && h.gps.latitude ? `GPS ${h.gps.latitude.toFixed(5)}, ${h.gps.longitude.toFixed(5)}` : "Location added";
   $("summary").innerHTML = `
     <dt>Donor</dt><dd>${esc(donor.name)}, ${esc(donor.phone)}</dd>
-    <dt>Pickup from</dt><dd>${esc(h.hallName)}<br>${esc(h.hallAddress)}<br><small class="hint">GPS ${h.gps.latitude.toFixed(5)}, ${h.gps.longitude.toFixed(5)}</small></dd>
-    <dt>Prepared at</dt><dd>${donor.preparedTime ? new Date(donor.preparedTime).toLocaleString() : "Not set"}</dd>
+    <dt>Pickup from</dt><dd>${esc(h.hallName)}<br>${esc(h.hallAddress)}<br><small class="hint">${latStr}</small></dd>
+    <dt>Prepared at</dt><dd>${donor.preparedTime ? new Date(donor.preparedTime).toLocaleString() : "Now"}</dd>
     <dt>Food</dt><dd>${filled.map(f => `${esc(f.name)}: ${f.quantity} ${f.unit === "kg" ? "kg" : "pcs"} (≈${f.peopleFed()} people)`).join("<br>")}</dd>
     <dt>Can feed about</dt><dd>${$("feedsNum").textContent} people</dd>`;
+  $("submitErr").textContent = "";
   show("s-review");
 };
 $("backFood").onclick = () => { renderPresets(); renderItems(); show("s-food"); };
 
-/* Submit + status */
-$("btnSubmit").onclick = () => {
-  donor.submitDonation();
-  try {
-    const h = (donor.halls && donor.halls[0]) ? donor.halls[0] : {};
-    const hallName = h.hallName || ($("hName") ? $("hName").value.trim() : "") || "Function Hall";
-    const hallAddr = h.hallAddress || ($("hAddr") ? $("hAddr").value.trim() : "") || "Bengaluru";
-    const locStr = (hallName ? hallName + ", " : "") + hallAddr;
-    const donorName = donor.name || ($("rName") ? $("rName").value.trim() : "") || "Food Donor";
+/* Submit + Status */
+$("btnSubmit").onclick = async () => {
+  $("submitErr").textContent = "";
+  $("btnSubmit").disabled = true;
+  $("btnSubmit").textContent = "Submitting…";
 
-    let foodsList = (donor.foods || []).map(f => ({
-      name: f.name,
-      foodType: f.foodType,
-      quantity: Number(f.quantity) || 0,
-      unit: f.unit || 'kg',
-      peopleFed: f.peopleFed ? f.peopleFed() : 0
-    })).filter(f => f.quantity > 0);
+  const h = (donor.halls && donor.halls[0]) ? donor.halls[0] : {};
+  const hallName = h.hallName || ($("hName") ? $("hName").value.trim() : "") || (donor.name + "'s Event");
+  const hallAddr = h.hallAddress || ($("hAddr") ? $("hAddr").value.trim() : "") || "Bengaluru";
+  const locStr = (hallName ? hallName + ", " : "") + hallAddr;
+  const donorName = donor.name || ($("rName") ? $("rName").value.trim() : "") || "Food Donor";
+  const rawPhone = donor.phone || ($("rPhone") ? $("rPhone").value.trim() : "") || "9876543210";
+  const phoneE164 = rawPhone.startsWith("+") ? rawPhone : "+91" + rawPhone;
 
-    if (foodsList.length === 0) {
-      foodsList = [{ name: 'Surplus Prepared Meals', foodType: 'VEG', quantity: 20, unit: 'kg', peopleFed: 80 }];
+  let foodsList = (donor.foods || []).map(f => ({
+    name: f.name,
+    foodType: f.name,
+    quantity: Number(f.quantity) || 1,
+    unit: f.unit === "kg" ? "KG" : "PACKAGES",
+    handlingRequirements: f.foodType === "NON_VEG" ? "Requires thermal preservation" : "Standard hygiene"
+  })).filter(f => f.quantity > 0);
+
+  if (foodsList.length === 0) {
+    foodsList = [{ name: 'Surplus Prepared Meals', foodType: 'Surplus Meals', quantity: 20, unit: 'KG', handlingRequirements: 'Standard hygiene' }];
+  }
+
+  const prepDate = donor.preparedTime ? new Date(donor.preparedTime) : new Date();
+  const readyDate = new Date(prepDate.getTime() + 15 * 60 * 1000);
+  const deadlineDate = new Date(readyDate.getTime() + 4 * 3600 * 1000);
+
+  let totalWeight = 0;
+  donor.foods.forEach(f => {
+    if (f.unit === 'kg') totalWeight += Number(f.quantity) || 0;
+    else totalWeight += (Number(f.quantity) || 0) * 0.1;
+  });
+
+  const payload = {
+    sourceName: hallName.slice(0, 200),
+    sourceType: "Event",
+    pickupAddress: locStr.slice(0, 500),
+    preparedAt: prepDate.toISOString(),
+    readyAt: readyDate.toISOString(),
+    pickupDeadline: deadlineDate.toISOString(),
+    contactName: donorName.slice(0, 160),
+    contactPhoneE164: phoneE164,
+    handlingRequirements: "Keep food covered in insulated vessels until crew arrival.",
+    donorSafetyDeclaration: true,
+    notes: "Food donation submitted via donor web application.",
+    estimatedWeightKg: totalWeight > 0 ? Math.round(totalWeight) : 10,
+    items: foodsList.map(item => ({
+      foodType: item.name.slice(0, 160),
+      quantity: item.quantity,
+      unit: item.unit,
+      handlingRequirements: item.handlingRequirements,
+    })),
+  };
+
+  if (isLiveMode) {
+    try {
+      const token = getStoredToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE}/food-requests`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json || !json.success) {
+        const errorMsg = json?.error?.message || `HTTP ${res.status}: Failed to submit food request.`;
+        const code = json?.error?.code || 'ERROR';
+        if (code === 'UNAUTHENTICATED' || res.status === 401) {
+          throw new Error('Authentication required by live Express server. Please sign in or enter a valid bearer token in the authentication panel, or switch to Demo Mode.');
+        }
+        throw new Error(`Server error (${code}): ${errorMsg}`);
+      }
+
+      const created = json.data;
+      donor.liveRequestId = created.id;
+      donor.submittedAt = new Date(created.createdAt || Date.now());
+      donor.serverData = created;
+      localStorage.setItem('aa:last-persisted-food-request-id', created.id);
+      localStorage.setItem('aa:last-persisted-food-request-data', JSON.stringify(created));
+
+      toast('Donation persisted to live database!');
+      renderStatus(created);
+      show('s-status');
+    } catch (err) {
+      $("submitErr").textContent = err.message || 'Failed to submit to backend.';
+      toast('Submission failed: ' + (err.message || 'Error'));
+    } finally {
+      $("btnSubmit").disabled = false;
+      $("btnSubmit").innerHTML = 'Send for pickup <span class="tag">submitDonation()</span>';
     }
-
-    const feedsVal = $("feedsNum") ? parseInt($("feedsNum").textContent) : 0;
+  } else {
+    // Demo Mode fallback
     const donationId = "f1000000-0000-4000-8000-" + String(Date.now()).slice(-12).padStart(12, '0');
     const pickupId = "p" + donationId.slice(1);
-
     const donationRecord = {
       id: donationId,
       donorName: donorName,
       location: locStr,
-      readyAt: donor.preparedTime ? new Date(donor.preparedTime).toISOString() : new Date().toISOString(),
-      pickupDeadline: new Date(Date.now() + 4 * 3600 * 1000).toISOString(),
+      readyAt: readyDate.toISOString(),
+      pickupDeadline: deadlineDate.toISOString(),
       status: "SUBMITTED",
       safetyReview: "APPROVED",
       foods: foodsList,
-      totalFeeds: feedsVal || foodsList.reduce((acc, f) => acc + f.peopleFed, 0)
+      totalFeeds: $("feedsNum") ? parseInt($("feedsNum").textContent) : 50,
+      isDemo: true
     };
     const list = Store.get("donations") || [];
     Store.set("donations", [donationRecord, ...list.filter(d => d.donorName !== donationRecord.donorName)]);
@@ -525,7 +689,8 @@ $("btnSubmit").onclick = () => {
       donorName: donorName,
       donorLocation: locStr,
       foods: foodsList,
-      totalFeeds: donationRecord.totalFeeds
+      totalFeeds: donationRecord.totalFeeds,
+      isDemo: true
     };
     const existingPickups = Store.get("demo-pickups") || [];
     Store.set("demo-pickups", [pickupRecord, ...existingPickups.filter(p => p.foodRequestId !== donationId)]);
@@ -537,31 +702,223 @@ $("btnSubmit").onclick = () => {
         setTimeout(() => bc.close(), 1000);
       }
     } catch {}
-  } catch (err) {
-    console.error("Donation submit error:", err);
-  }
-  renderStatus(); show("s-status"); toast("Sent for pickup");
-};
-function renderStatus(){
-  const cancelled = donor.status === "Cancelled";
-  const t = donor.submittedAt.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
-  $("stTitle").textContent = cancelled ? "Donation cancelled" : "Sent for pickup";
-  $("stLead").textContent = cancelled ? "The pickup team has been told not to come." : "Thank you. Keep the food covered until the pickup team arrives.";
-  $("timeline").innerHTML = cancelled
-    ? `<li class="done">Donation sent<small>${t}</small></li><li class="now">Cancelled by you</li>`
-    : `<li class="done">Donation sent<small>${t}</small></li><li class="now">${esc(donor.viewPickupStatus())}</li><li>Food picked up</li><li>Delivered to NGO</li>`;
-  $("stBtns").hidden = cancelled;
-}
-$("btnStatus").onclick = () => toast("Status: " + donor.viewPickupStatus());
-$("btnCancel").onclick = () => {
-  const b = $("btnCancel");
-  if (!b.dataset.sure) { b.dataset.sure = "1"; b.textContent = "Tap again to cancel"; setTimeout(() => { delete b.dataset.sure; b.innerHTML = 'Cancel donation <span class="tag">cancelDonation()</span>'; }, 3000); return; }
-  delete b.dataset.sure; b.innerHTML = 'Cancel donation <span class="tag">cancelDonation()</span>';
-  if (donor.cancelDonation()) { renderStatus(); toast("Donation cancelled"); }
-};
-$("btnNew").onclick = () => { donor.foods = []; donor.status = null; renderPresets(); renderItems(); show("s-hall"); };
 
-show("s-auth");
+    donor.liveRequestId = null;
+    donor.serverData = donationRecord;
+    $("btnSubmit").disabled = false;
+    $("btnSubmit").innerHTML = 'Send for pickup <span class="tag">submitDonation()</span>';
+    renderStatus(donationRecord);
+    show('s-status');
+    toast('Sent for pickup (Demo Mode)');
+  }
+};
+
+async function fetchAuthoritativeStatus(requestId) {
+  if (!requestId) return null;
+  const token = getStoredToken();
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    const res = await fetch(`${API_BASE}/food-requests/${requestId}`, { headers });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.success && json.data) {
+      donor.serverData = json.data;
+      localStorage.setItem('aa:last-persisted-food-request-data', JSON.stringify(json.data));
+      return json.data;
+    }
+  } catch (err) {
+    console.warn("Could not fetch authoritative status:", err);
+  }
+  return null;
+}
+
+function renderStatus(data) {
+  const d = data || donor?.serverData || {};
+  const isCancelled = d.status === "CANCELLED" || donor?.status === "Cancelled";
+  const badgeContainer = $("liveBadgeContainer");
+
+  if (donor?.liveRequestId) {
+    badgeContainer.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+        <span style="display:inline-block;padding:4px 10px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:999px;font-size:0.78rem;font-weight:700">
+          🟢 Persisted in PostgreSQL (${esc(donor.liveRequestId)})
+        </span>
+        <span style="font-size:0.75rem;color:var(--muted)">Authoritative live sync</span>
+      </div>`;
+    $("authoritativeSubtext").textContent = `Request ID: ${donor.liveRequestId} — Authoritative data fetched from live Express API.`;
+  } else {
+    badgeContainer.innerHTML = `
+      <span style="display:inline-block;padding:4px 10px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:999px;font-size:0.78rem;font-weight:700">
+        🟡 Demo Mode (Local Prototype Record)
+      </span>`;
+    $("authoritativeSubtext").textContent = "Local prototype mode — submissions stored in browser localStorage.";
+  }
+
+  const timeStr = donor?.submittedAt ? donor.submittedAt.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "Just now";
+
+  if (isCancelled) {
+    $("stTitle").textContent = "Donation cancelled";
+    $("stLead").textContent = "The pickup team has been notified. This request has been cancelled.";
+    $("timeline").innerHTML = `
+      <li class="done">Donation submitted<small>${timeStr}</small></li>
+      <li class="now">Cancelled by you<small>Authoritative state: CANCELLED</small></li>`;
+    $("stBtns").hidden = true;
+    return;
+  }
+
+  $("stTitle").textContent = "Sent for pickup";
+  $("stLead").textContent = "Thank you. Keep the food covered until the pickup team arrives.";
+
+  // Determine stage progress
+  const safetyReview = d.safetyReview || "PENDING";
+  const pickup = d.pickup || null;
+  const pickupStatus = pickup ? pickup.status : null;
+  const assignStatus = pickup ? pickup.assignmentStatus : null;
+
+  let timelineHtml = `<li class="done">Donation submitted<small>${timeStr}</small></li>`;
+
+  // Step 2: Food Safety Review
+  if (safetyReview === "APPROVED") {
+    timelineHtml += `<li class="done">Food safety review<small>Approved by coordinator ✓</small></li>`;
+  } else if (safetyReview === "REJECTED") {
+    timelineHtml += `<li class="now" style="color:var(--chili)">Food safety review<small>Not approved</small></li>`;
+  } else {
+    timelineHtml += `<li class="now">Food safety review<small>Pending coordinator verification</small></li>`;
+  }
+
+  // Step 3: Pickup Scheduled
+  if (pickup) {
+    const winStart = pickup.windowStartsAt ? new Date(pickup.windowStartsAt).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "";
+    const winEnd = pickup.windowEndsAt ? new Date(pickup.windowEndsAt).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "";
+    timelineHtml += `<li class="done">Pickup scheduled<small>Window: ${winStart} – ${winEnd}</small></li>`;
+  } else {
+    timelineHtml += `<li class="${safetyReview === 'APPROVED' ? 'now' : ''}">Pickup scheduled<small>Awaiting admin scheduling</small></li>`;
+  }
+
+  // Step 4: Crew & Vehicle Assigned
+  if (pickupStatus && pickupStatus !== "PLANNED") {
+    timelineHtml += `<li class="done">Crew &amp; vehicle assigned<small>Status: ${esc(assignStatus || pickupStatus)}</small></li>`;
+  } else {
+    timelineHtml += `<li class="${pickupStatus === 'PLANNED' ? 'now' : ''}">Crew &amp; vehicle assigned<small>Logistics team assigning crew</small></li>`;
+  }
+
+  // Step 5: Food Picked Up / Collected
+  if (["FOOD_COLLECTED", "DELIVERED"].includes(pickupStatus)) {
+    timelineHtml += `<li class="done">Food collected from hall<small>Inspected &amp; loaded</small></li>`;
+  } else if (["EN_ROUTE", "ARRIVED_AT_DONOR"].includes(pickupStatus)) {
+    timelineHtml += `<li class="now">Food pickup in progress<small>${pickupStatus === 'ARRIVED_AT_DONOR' ? 'Crew arrived at venue' : 'Crew en route'}</small></li>`;
+  } else {
+    timelineHtml += `<li>Food collected from hall</li>`;
+  }
+
+  // Step 6: Delivered to Distribution
+  if (pickupStatus === "DELIVERED") {
+    timelineHtml += `<li class="done">Delivered to NGO distribution<small>Delivered successfully 🎉</small></li>`;
+  } else {
+    timelineHtml += `<li>Delivered to NGO distribution</li>`;
+  }
+
+  $("timeline").innerHTML = timelineHtml;
+  $("stBtns").hidden = false;
+}
+
+$("btnStatus").onclick = async () => {
+  if (donor?.liveRequestId) {
+    toast("Checking backend status…");
+    const updated = await fetchAuthoritativeStatus(donor.liveRequestId);
+    if (updated) {
+      renderStatus(updated);
+      toast("Status updated: " + (updated.pickup ? updated.pickup.status : updated.status));
+    } else {
+      toast("Could not refresh from live server. Check connection.");
+    }
+  } else {
+    toast("Status: " + (donor?.serverData?.status || "SUBMITTED") + " (Demo Mode)");
+  }
+};
+
+$("btnCancel").onclick = async () => {
+  const b = $("btnCancel");
+  if (!b.dataset.sure) {
+    b.dataset.sure = "1";
+    b.textContent = "Tap again to confirm cancellation";
+    setTimeout(() => {
+      delete b.dataset.sure;
+      b.innerHTML = 'Cancel donation <span class="tag">cancelDonation()</span>';
+    }, 3000);
+    return;
+  }
+  delete b.dataset.sure;
+  b.innerHTML = 'Cancel donation <span class="tag">cancelDonation()</span>';
+
+  if (donor?.liveRequestId) {
+    try {
+      const token = getStoredToken();
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE}/food-requests/${donor.liveRequestId}/cancel`, {
+        method: 'POST',
+        headers
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error?.message || `HTTP ${res.status}`);
+      }
+
+      if (donor) donor.status = "Cancelled";
+      toast("Donation cancelled on server.");
+      renderStatus(json.data);
+    } catch (err) {
+      toast("Cancellation failed: " + err.message);
+    }
+  } else {
+    if (donor) donor.status = "Cancelled";
+    renderStatus();
+    toast("Donation cancelled (Demo Mode)");
+  }
+};
+
+$("btnNew").onclick = () => {
+  if (donor) {
+    donor.foods = [];
+    donor.status = null;
+    donor.liveRequestId = null;
+    donor.serverData = null;
+  }
+  localStorage.removeItem('aa:last-persisted-food-request-id');
+  renderPresets();
+  renderItems();
+  show("s-hall");
+};
+
+// Auto-hydrate persisted request on page reload if present
+window.addEventListener("DOMContentLoaded", () => {
+  const lastId = localStorage.getItem('aa:last-persisted-food-request-id');
+  if (lastId && isLiveMode) {
+    const rawData = localStorage.getItem('aa:last-persisted-food-request-data');
+    let cached = null;
+    try { cached = rawData ? JSON.parse(rawData) : null; } catch {}
+
+    donor = new FoodDonor(cached?.contactName || "Food Donor", cached?.contactPhoneE164 || "9876543210", cached?.pickupAddress || "Bengaluru");
+    donor.liveRequestId = lastId;
+    donor.serverData = cached;
+    if (cached?.createdAt) donor.submittedAt = new Date(cached.createdAt);
+
+    renderStatus(cached);
+    show("s-status");
+
+    // Immediately fetch fresh state from server
+    void fetchAuthoritativeStatus(lastId).then(fresh => {
+      if (fresh) renderStatus(fresh);
+    });
+  } else {
+    show("s-auth");
+  }
+});
 </script>
 </body>
 </html>

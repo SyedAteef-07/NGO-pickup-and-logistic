@@ -138,7 +138,49 @@ try {
   assert.match(document.body.textContent, /ಘಟಕದ ಮಾಹಿತಿ/)
 
   await act(async () => root.unmount())
-  console.log('Smoke check passed: bilingual UI, assignment flow, status update, volunteer search/filter/add/edit and team create/add/change leader/remove.')
+
+  // Verify Requirement: Donor page has no misleading Pickup assignment action
+  const { readFileSync } = await import('node:fs')
+  const { resolve } = await import('node:path')
+  const donorHtml = readFileSync(resolve(process.cwd(), 'public/donor/index.html'), 'utf8')
+  assert.doesNotMatch(donorHtml, /🚚 Open Pickup &amp; Logistics/, 'Donor page must not contain header pickup action')
+  assert.doesNotMatch(donorHtml, /Open in Pickup &amp; Logistics/, 'Donor page must not contain status pickup action')
+  assert.doesNotMatch(donorHtml, /Go to Volunteer Workspace/, 'Donor page must not link to volunteer workspace')
+
+  // Verify Requirement: Recommendation algorithm handles over-capacity, inactive status, and does not assign automatically
+  const { rankVehiclesForPickup, rankVolunteersForPickup } = await server.ssrLoadModule('/src/features/pickups/aiLogistics.ts')
+
+  const candidateVehicles = [
+    { vehicleId: 'veh-small', registrationNumber: 'KA-01-A', kind: 'Two-Wheeler EV Scooter', capacity: 25, status: 'ACTIVE' },
+    { vehicleId: 'veh-broken', registrationNumber: 'KA-02-B', kind: 'Tata Ace Mini Truck', capacity: 500, status: 'MAINTENANCE' },
+    { vehicleId: 'veh-large', registrationNumber: 'KA-03-C', kind: 'Tata Ace Mini Truck', capacity: 500, status: 'ACTIVE' },
+  ]
+  const vehicleResult = rankVehiclesForPickup(candidateVehicles, { totalEstimatedWeightKg: 80, totalVessels: 4 })
+  const small = vehicleResult.ranked.find(v => v.vehicleId === 'veh-small')
+  assert.equal(small.isEligible, false, 'Over-capacity vehicle must be marked ineligible')
+  assert.equal(small.isOverCapacity, true, 'Deficit must flag isOverCapacity')
+  assert.equal(small.suitabilityScore, 0, 'Ineligible vehicle must have 0 suitability score')
+
+  const broken = vehicleResult.ranked.find(v => v.vehicleId === 'veh-broken')
+  assert.equal(broken.isEligible, false, 'Non-ACTIVE vehicle must be ineligible')
+
+  const validTruck = vehicleResult.ranked.find(v => v.vehicleId === 'veh-large')
+  assert.equal(validTruck.isEligible, true, 'Active vehicle with sufficient capacity must be eligible')
+  assert.equal(vehicleResult.bestVehicle.vehicleId, 'veh-large', 'Eligible candidate should be selected as best recommendation')
+
+  const candidateVolunteers = [
+    { volunteerId: 'vol-inactive', name: 'Inactive Volunteer', status: 'INACTIVE', skills: ['Food Handling'] },
+    { volunteerId: 'vol-skilled', name: 'Skilled Volunteer', status: 'ACTIVE', skills: ['Food Handling', 'Heavy Lifting'] },
+  ]
+  const volResult = rankVolunteersForPickup(candidateVolunteers, { totalEstimatedWeightKg: 80 })
+  const inactive = volResult.ranked.find(v => v.volunteerId === 'vol-inactive')
+  assert.equal(inactive.isEligible, false, 'Inactive volunteer must be ineligible')
+
+  const skilled = volResult.ranked.find(v => v.volunteerId === 'vol-skilled')
+  assert.equal(skilled.isEligible, true, 'Active skilled volunteer must be eligible')
+  assert.ok(skilled.suitabilityScore > 80, 'Relevant skills should boost match score')
+
+  console.log('Smoke check passed: bilingual UI, assignment flow, donor page isolation, logistics recommendations, volunteer search/filter/add/edit and team create/add/change leader/remove.')
 } finally {
   await server.waitForRequestsIdle()
   await server.close()

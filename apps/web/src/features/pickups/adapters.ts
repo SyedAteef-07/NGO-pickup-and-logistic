@@ -1,30 +1,22 @@
 import { ApiClientError } from '../../api/client'
+import { getAdminAccessToken } from '../../api/auth'
 
 export function isLiveAdmin(): boolean {
   if (typeof window === 'undefined') return false
   return window.localStorage.getItem('aaharaconnect-admin-session') === '1'
 }
 
-export function getLiveAccessToken(): string | null {
-  if (typeof window === 'undefined') return null
+/**
+ * Returns the admin access token using the centralized Supabase Auth session adapter.
+ */
+export async function getLiveAccessToken(): Promise<string | null> {
   try {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i)
-      if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
-        const item = window.localStorage.getItem(key)
-        if (item) {
-          const parsed = JSON.parse(item)
-          if (parsed && typeof parsed.access_token === 'string') {
-            return parsed.access_token
-          }
-        }
-      }
-    }
+    return await getAdminAccessToken()
   } catch {
-    // ignore parse errors
+    return null
   }
-  return null
 }
+
 
 export function map409ErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {

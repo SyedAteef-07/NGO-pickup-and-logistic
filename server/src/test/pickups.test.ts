@@ -1910,5 +1910,269 @@ describe('Pickups Assignment & Reservations API (PR2)', () => {
       });
     });
   });
-});
 
+  describe('GET /pickups/:id/assignment (Active Assignment Retrieval)', () => {
+    const pickupId = 'c0000000-0000-4000-8000-000000000001';
+    const assignmentId = 'c1000000-0000-4000-8000-000000000001';
+    const driverId = 'c2000000-0000-4000-8000-000000000001';
+    const vehicleId = 'c3000000-0000-4000-8000-000000000001';
+    const volunteerId = 'c4000000-0000-4000-8000-000000000001';
+
+    it('rejects unauthenticated requests with 401 UNAUTHENTICATED', async () => {
+      const res = await request(app).get(`/api/v1/pickups/${pickupId}/assignment`);
+      expect(res.status).toBe(401);
+      expect(res.body.error.code).toBe('UNAUTHENTICATED');
+    });
+
+    it('rejects non-admin (VOLUNTEER) access with 403 FORBIDDEN', async () => {
+      findUser.mockResolvedValue(volunteer);
+      const res = await request(app)
+        .get(`/api/v1/pickups/${pickupId}/assignment`)
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('rejects non-admin (DONOR) access with 403 FORBIDDEN', async () => {
+      findUser.mockResolvedValue(donor);
+      const res = await request(app)
+        .get(`/api/v1/pickups/${pickupId}/assignment`)
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('rejects non-uuid id parameter with 400 VALIDATION_ERROR', async () => {
+      const res = await request(app)
+        .get('/api/v1/pickups/not-a-uuid/assignment')
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('returns 404 NOT_FOUND when pickup does not exist', async () => {
+      query.mockImplementation(async (sql: string) => {
+        if (sql.includes('FROM app.pickups WHERE id = $1')) {
+          return { rows: [] };
+        }
+        return { rows: [] };
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/pickups/${pickupId}/assignment`)
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('NOT_FOUND');
+    });
+
+    it('returns 200 with data: null when pickup exists but has no active assignments', async () => {
+      query.mockImplementation(async (sql: string) => {
+        if (sql.includes('FROM app.pickups WHERE id = $1')) {
+          return {
+            rows: [{
+              id: pickupId,
+              food_request_id: 'f0000000-0000-4000-8000-000000000001',
+              window_starts_at: new Date('2026-10-10T10:00:00Z'),
+              window_ends_at: new Date('2026-10-10T12:00:00Z'),
+              delivery_address: 'Central Food Hub',
+              status: 'PLANNED',
+              version: 0,
+              created_at: new Date('2026-10-01T10:00:00Z'),
+            }],
+          };
+        }
+        if (sql.includes('FROM app.assignments') && sql.includes('status')) {
+          return { rows: [] };
+        }
+        return { rows: [] };
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/pickups/${pickupId}/assignment`)
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeNull();
+    });
+
+    it('returns 200 with data: null when all assignments are in terminal states', async () => {
+      query.mockImplementation(async (sql: string) => {
+        if (sql.includes('FROM app.pickups WHERE id = $1')) {
+          return {
+            rows: [{
+              id: pickupId,
+              food_request_id: 'f0000000-0000-4000-8000-000000000001',
+              window_starts_at: new Date('2026-10-10T10:00:00Z'),
+              window_ends_at: new Date('2026-10-10T12:00:00Z'),
+              delivery_address: 'Central Food Hub',
+              status: 'DELIVERED',
+              version: 2,
+              created_at: new Date('2026-10-01T10:00:00Z'),
+            }],
+          };
+        }
+        if (sql.includes('FROM app.assignments') && sql.includes('status')) {
+          return { rows: [] };
+        }
+        return { rows: [] };
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/pickups/${pickupId}/assignment`)
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeNull();
+    });
+
+    it('queries active assignments using explicit ACTIVE_ASSIGNMENT_STATUSES and excludes terminal or unknown statuses', async () => {
+      let capturedParams: unknown[] = [];
+      query.mockImplementation(async (sql, params) => {
+        if (sql.includes('FROM app.pickups WHERE id = $1')) {
+          return {
+            rows: [{
+              id: pickupId,
+              food_request_id: 'f0000000-0000-4000-8000-000000000001',
+              window_starts_at: new Date('2026-10-10T10:00:00Z'),
+              window_ends_at: new Date('2026-10-10T12:00:00Z'),
+              delivery_address: 'Central Food Hub',
+              status: 'ASSIGNED',
+              version: 1,
+              created_at: new Date('2026-10-01T10:00:00Z'),
+            }],
+          };
+        }
+        if (sql.includes('FROM app.assignments') && sql.includes('status = ANY')) {
+          capturedParams = params ?? [];
+          return { rows: [] };
+        }
+        return { rows: [] };
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/pickups/${pickupId}/assignment`)
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeNull();
+      expect(capturedParams[1]).toEqual([
+        'PENDING',
+        'ACCEPTED',
+        'EN_ROUTE',
+        'ARRIVED_AT_DONOR',
+        'FOOD_COLLECTED',
+      ]);
+    });
+
+    it('returns 200 with data: Assignment when an active assignment exists', async () => {
+      query.mockImplementation(async (sql: string) => {
+        if (sql.includes('FROM app.pickups WHERE id = $1')) {
+          return {
+            rows: [{
+              id: pickupId,
+              food_request_id: 'f0000000-0000-4000-8000-000000000001',
+              window_starts_at: new Date('2026-10-10T10:00:00Z'),
+              window_ends_at: new Date('2026-10-10T12:00:00Z'),
+              delivery_address: 'Central Food Hub',
+              status: 'ASSIGNED',
+              version: 1,
+              created_at: new Date('2026-10-01T10:00:00Z'),
+            }],
+          };
+        }
+        if (sql.includes('FROM app.assignments') && sql.includes('status')) {
+          return {
+            rows: [{
+              id: assignmentId,
+              pickup_id: pickupId,
+              team_id: null,
+              driver_id: driverId,
+              vehicle_id: vehicleId,
+              role: 'Pickup Crew',
+              status: 'PENDING',
+              version: 1,
+              created_at: new Date('2026-10-01T10:00:00Z'),
+            }],
+          };
+        }
+        if (sql.includes('FROM app.assignment_members WHERE assignment_id = $1')) {
+          return {
+            rows: [{ volunteer_id: volunteerId }],
+          };
+        }
+        return { rows: [] };
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/pickups/${pickupId}/assignment`)
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual({
+        id: assignmentId,
+        pickupId,
+        status: 'PENDING',
+        version: 1,
+        volunteerIds: [volunteerId],
+        teamId: null,
+        driverId,
+        vehicleId,
+      });
+    });
+
+    it('returns 500 INTERNAL_ERROR when multiple active assignments exist (invariant violation)', async () => {
+      query.mockImplementation(async (sql: string) => {
+        if (sql.includes('FROM app.pickups WHERE id = $1')) {
+          return {
+            rows: [{
+              id: pickupId,
+              food_request_id: 'f0000000-0000-4000-8000-000000000001',
+              window_starts_at: new Date('2026-10-10T10:00:00Z'),
+              window_ends_at: new Date('2026-10-10T12:00:00Z'),
+              delivery_address: 'Central Food Hub',
+              status: 'ASSIGNED',
+              version: 1,
+              created_at: new Date('2026-10-01T10:00:00Z'),
+            }],
+          };
+        }
+        if (sql.includes('FROM app.assignments') && sql.includes('status')) {
+          return {
+            rows: [
+              {
+                id: assignmentId,
+                pickup_id: pickupId,
+                team_id: null,
+                driver_id: driverId,
+                vehicle_id: vehicleId,
+                role: 'Pickup Crew 1',
+                status: 'PENDING',
+                version: 1,
+                created_at: new Date('2026-10-01T10:00:00Z'),
+              },
+              {
+                id: 'a0000000-0000-4000-8000-000000000002',
+                pickup_id: pickupId,
+                team_id: null,
+                driver_id: driverId,
+                vehicle_id: vehicleId,
+                role: 'Pickup Crew 2',
+                status: 'ACCEPTED',
+                version: 1,
+                created_at: new Date('2026-10-01T11:00:00Z'),
+              },
+            ],
+          };
+        }
+        return { rows: [] };
+      });
+
+      const res = await request(app)
+        .get(`/api/v1/pickups/${pickupId}/assignment`)
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(500);
+      expect(res.body.error.code).toBe('INTERNAL_ERROR');
+      expect(res.body.error.message).toContain('Data invariant violation');
+    });
+  });
+});

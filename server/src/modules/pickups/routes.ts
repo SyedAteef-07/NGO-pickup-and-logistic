@@ -13,6 +13,7 @@ import { sendSuccess } from '../../utils/response';
 import {
   createAssignmentHandler,
   createPickupHandler,
+  getActiveAssignmentHandler,
   getPickupByIdHandler,
   getVolunteerAssignmentsHandler,
   listPickupsHandler,
@@ -31,6 +32,7 @@ pickupSubRouter.post(
   createAssignmentHandler
 );
 pickupSubRouter.get('/', requireAuth, requireRole('ADMIN'), listPickupsHandler);
+pickupSubRouter.get('/:id/assignment', requireAuth, requireRole('ADMIN'), getActiveAssignmentHandler);
 pickupSubRouter.get('/:id', requireAuth, requireRole('ADMIN'), getPickupByIdHandler);
 
 const assignmentSubRouter = Router();

@@ -7,17 +7,24 @@ import {
   Sparkles,
   Truck,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Drawer, formatDate, formatTime, StatusBadge } from '../../components/common/UI'
 import { isLiveAdmin, map409ErrorMessage } from './adapters'
 import { calculateAiLogistics } from './aiLogistics'
-import { transitionAssignment } from './api'
-import { updateDemoPickupStatus, useVehicleAssignments } from './hooks'
+import { fetchActiveAssignment, transitionAssignment } from './api'
+import {
+  getDemoAssignment,
+  updateDemoAssignmentStatus,
+  updateDemoPickupStatus,
+  useAssignWizardResources,
+  useVehicleAssignments,
+} from './hooks'
 import type { LiveAssignment, Pickup, PickupStatus } from './types'
 
 interface Props {
   pickup: Pickup
   assignment?: LiveAssignment | null
+  open?: boolean
   onClose: () => void
   onOpenAssign: () => void
   onAssignmentUpdated?: (assignment: LiveAssignment) => void
@@ -33,6 +40,8 @@ const statusSteps: PickupStatus[] = [
   'DELIVERED',
 ]
 
+const TERMINAL_STATUSES = new Set(['DELIVERED', 'CANCELLED', 'FAILED', 'REJECTED'])
+
 const friendlyNames: Record<string, string> = {
   PLANNED: 'Planned',
   ASSIGNED: 'Assigned',
@@ -47,6 +56,7 @@ const friendlyNames: Record<string, string> = {
 export function PickupDrawer({
   pickup,
   assignment,
+  open = true,
   onClose,
   onOpenAssign,
   onAssignmentUpdated,
@@ -54,6 +64,89 @@ export function PickupDrawer({
 }: Props) {
   const currentStepIndex = statusSteps.indexOf(pickup.status)
   const isCancelledOrFailed = pickup.status === 'CANCELLED' || pickup.status === 'FAILED'
+
+  const [currentAssignment, setCurrentAssignment] = useState<LiveAssignment | null>(() => {
+    if (!isLiveAdmin() && pickup?.id) {
+      if (assignment?.pickupId === pickup.id) return assignment
+      return getDemoAssignment(pickup.id)
+    }
+    return null
+  })
+  const [loadingAssignment, setLoadingAssignment] = useState(false)
+  const [assignmentError, setAssignmentError] = useState<string | null>(null)
+
+  const { volunteers: resourceVolunteers, drivers: resourceDrivers, vehicles: resourceVehicles } = useAssignWizardResources()
+
+  const resolvedDriver = useMemo(() => {
+    if (!currentAssignment?.driverId) return null
+    return (resourceDrivers as any[]).find(d => (d.driverId || d.id) === currentAssignment.driverId) || null
+  }, [currentAssignment?.driverId, resourceDrivers])
+
+  const resolvedVehicle = useMemo(() => {
+    if (!currentAssignment?.vehicleId) return null
+    return (resourceVehicles as any[]).find(v => (v.vehicleId || v.id) === currentAssignment.vehicleId) || null
+  }, [currentAssignment?.vehicleId, resourceVehicles])
+
+  const resolvedVolunteers = useMemo(() => {
+    if (!currentAssignment?.volunteerIds || currentAssignment.volunteerIds.length === 0) return []
+    return currentAssignment.volunteerIds.map(id => {
+      const match = (resourceVolunteers as any[]).find(v => (v.volunteerId || v.id) === id)
+      return { id, name: match?.name || match?.fullName || id }
+    })
+  }, [currentAssignment?.volunteerIds, resourceVolunteers])
+
+  useEffect(() => {
+    let isCancelled = false
+
+    if (!open || !pickup?.id) {
+      setCurrentAssignment(null)
+      setAssignmentError(null)
+      setLoadingAssignment(false)
+      return
+    }
+
+    // Always clear immediately when switching pickups to guarantee previous pickup's assignment never leaks
+    setCurrentAssignment(null)
+    setAssignmentError(null)
+
+    if (!isLiveAdmin()) {
+      if (assignment && assignment.pickupId === pickup.id) {
+        setCurrentAssignment(assignment)
+      } else {
+        const stored = getDemoAssignment(pickup.id)
+        if (stored) {
+          setCurrentAssignment(stored)
+        }
+      }
+      setLoadingAssignment(false)
+      return
+    }
+
+    setLoadingAssignment(true)
+    fetchActiveAssignment(pickup.id)
+      .then(data => {
+        if (!isCancelled) {
+          setCurrentAssignment(data)
+          setAssignmentError(null)
+        }
+      })
+      .catch(err => {
+        if (!isCancelled) {
+          console.error('Failed to fetch active assignment:', err)
+          setCurrentAssignment(null)
+          setAssignmentError('Unable to load active assignment.')
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setLoadingAssignment(false)
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [open, pickup?.id, assignment])
 
   const aiAssessment = useMemo(
     () =>
@@ -63,7 +156,7 @@ export function PickupDrawer({
   )
 
   const { assignments: vehicleAssignments, loading: loadingVehicleProj } = useVehicleAssignments(
-    assignment?.vehicleId
+    currentAssignment?.vehicleId
   )
 
   const [transitionReason, setTransitionReason] = useState('')
@@ -71,7 +164,7 @@ export function PickupDrawer({
   const [actionError, setActionError] = useState<string | null>(null)
 
   const handleAdminAction = async (action: 'DELIVER' | 'CANCEL' | 'FAIL') => {
-    if (!assignment) return
+    if (!currentAssignment) return
     if ((action === 'CANCEL' || action === 'FAIL') && !transitionReason.trim()) {
       notify('A reason is required to cancel or mark failure.', 'error')
       return
@@ -80,13 +173,29 @@ export function PickupDrawer({
     setActionError(null)
     try {
       const updated = await transitionAssignment(
-        assignment.id,
+        currentAssignment.id,
         action,
-        assignment.version,
+        currentAssignment.version,
         transitionReason.trim() || undefined
       )
       notify(`Assignment updated: ${action}`)
       setTransitionReason('')
+
+      if (TERMINAL_STATUSES.has(updated.status)) {
+        setCurrentAssignment(null)
+      } else {
+        setCurrentAssignment(updated)
+      }
+
+      try {
+        const refreshed = await fetchActiveAssignment(pickup.id)
+        setCurrentAssignment(refreshed)
+      } catch {
+        if (TERMINAL_STATUSES.has(updated.status)) {
+          setCurrentAssignment(null)
+        }
+      }
+
       if (onAssignmentUpdated) onAssignmentUpdated(updated)
     } catch (err: unknown) {
       const msg = map409ErrorMessage(err)
@@ -101,8 +210,12 @@ export function PickupDrawer({
     updateDemoPickupStatus(pickup.id, nextStatus)
     pickup.status = nextStatus
     notify(`Pickup status updated to ${friendlyNames[nextStatus] || nextStatus}`)
-    if (onAssignmentUpdated && assignment) {
-      onAssignmentUpdated({ ...assignment, status: nextStatus as any })
+    if (currentAssignment) {
+      const updated = updateDemoAssignmentStatus(currentAssignment.id, nextStatus as any)
+      if (updated) setCurrentAssignment(updated)
+      if (onAssignmentUpdated) {
+        onAssignmentUpdated(updated || { ...currentAssignment, status: nextStatus as any })
+      }
     }
   }
 
@@ -308,6 +421,82 @@ export function PickupDrawer({
           </div>
         </div>
 
+        {/* Active Assignment Details */}
+        {loadingAssignment && (
+          <div className="detail-section">
+            <p style={{ color: '#64748b', fontSize: '0.85rem' }}>Loading pickups…</p>
+          </div>
+        )}
+        {assignmentError && !loadingAssignment && (
+          <div className="detail-section">
+            <div style={{ color: '#dc2626', fontSize: '0.85rem' }}>
+              {assignmentError}
+            </div>
+          </div>
+        )}
+        {currentAssignment && !loadingAssignment && (
+          <div className="detail-section">
+            <h3>Assignment details</h3>
+            <div className="detail-grid">
+              <div>
+                <span>Assignment ID</span>
+                <strong style={{ wordBreak: 'break-all' }}>{currentAssignment.id}</strong>
+              </div>
+              <div>
+                <span>Status</span>
+                <strong>
+                  <span className="live-status">{currentAssignment.status.replaceAll('_', ' ')}</span>
+                </strong>
+              </div>
+              <div>
+                <span>Driver</span>
+                <strong style={{ wordBreak: 'break-all' }}>
+                  {resolvedDriver?.name ? (
+                    <>
+                      <div>{resolvedDriver.name}</div>
+                      <small style={{ color: '#64748b', fontWeight: 400 }}>{currentAssignment.driverId}</small>
+                    </>
+                  ) : (
+                    currentAssignment.driverId
+                  )}
+                </strong>
+              </div>
+              <div>
+                <span>Vehicle</span>
+                <strong style={{ wordBreak: 'break-all' }}>
+                  {resolvedVehicle?.registrationNumber ? (
+                    <>
+                      <div>{resolvedVehicle.registrationNumber} {resolvedVehicle.kind || resolvedVehicle.type ? `(${resolvedVehicle.kind || resolvedVehicle.type})` : ''}</div>
+                      <small style={{ color: '#64748b', fontWeight: 400 }}>{currentAssignment.vehicleId}</small>
+                    </>
+                  ) : (
+                    currentAssignment.vehicleId
+                  )}
+                </strong>
+              </div>
+              <div>
+                <span>Volunteers</span>
+                <strong>
+                  {resolvedVolunteers.length > 0 ? (
+                    <>
+                      <div>{resolvedVolunteers.map(v => v.name).join(', ')}</div>
+                      <small style={{ color: '#64748b', fontWeight: 400 }}>{`(${currentAssignment.volunteerIds.length} assigned)`}</small>
+                    </>
+                  ) : (
+                    currentAssignment.volunteerIds.length
+                  )}
+                </strong>
+              </div>
+              {currentAssignment.teamId && (
+                <div>
+                  <span>Team</span>
+                  <strong style={{ wordBreak: 'break-all' }}>{currentAssignment.teamId}</strong>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Assign Action */}
         {pickup.status === 'PLANNED' && (
           <div className="detail-section">
@@ -322,7 +511,7 @@ export function PickupDrawer({
         )}
 
         {/* Demo status transitions */}
-        {!isLiveAdmin() && pickup.status !== 'PLANNED' && !isCancelledOrFailed && (
+        {!isLiveAdmin() && pickup.status !== 'PLANNED' && !isCancelledOrFailed && pickup.status !== 'DELIVERED' && (
           <div className="detail-section">
             <h3>Admin Actions</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -367,7 +556,11 @@ export function PickupDrawer({
         )}
 
         {/* Live Admin Transitions */}
-        {isLiveAdmin() && assignment && !isCancelledOrFailed && (
+        {isLiveAdmin() &&
+          currentAssignment &&
+          !TERMINAL_STATUSES.has(currentAssignment.status) &&
+          !isCancelledOrFailed &&
+          pickup.status !== 'DELIVERED' && (
           <div className="detail-section">
             <h3>Admin Actions</h3>
             {actionError && (
@@ -376,7 +569,7 @@ export function PickupDrawer({
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {assignment.status === 'FOOD_COLLECTED' && (
+              {currentAssignment.status === 'FOOD_COLLECTED' && (
                 <button
                   type="button"
                   className="button button-primary full-width"
@@ -420,7 +613,7 @@ export function PickupDrawer({
         )}
 
         {/* Vehicle Projection View */}
-        {assignment?.vehicleId && (
+        {currentAssignment?.vehicleId && (
           <div className="detail-section">
             <h3>Vehicle view</h3>
             <p className="quiet-text">Module 3 vehicle assignment projection.</p>

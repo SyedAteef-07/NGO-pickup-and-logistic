@@ -16,13 +16,31 @@ if (corsOrigins.length === 0 || corsOrigins.some(origin => !/^https?:\/\//.test(
   throw new Error('CORS_ORIGIN must contain one or more http(s) origins.');
 }
 
+export function parseDatabaseUrl(rawUrl?: string): string | undefined {
+  if (!rawUrl || rawUrl.trim() === '') return undefined;
+  const trimmed = rawUrl.trim();
+  try {
+    const parsed = new URL(trimmed);
+    if (!['postgresql:', 'postgres:'].includes(parsed.protocol)) {
+      throw new Error('DATABASE_URL protocol must be postgresql: or postgres:.');
+    }
+    return trimmed;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('protocol')) {
+      throw error;
+    }
+    // Prevent credential leakage: Node URL parser errors may include credentials
+    throw new Error('DATABASE_URL must be a valid PostgreSQL connection URL.');
+  }
+}
+
 export const env = {
   port,
   nodeEnv,
   corsOrigins,
-  databaseUrl: process.env.DATABASE_URL || undefined,
+  databaseUrl: parseDatabaseUrl(process.env.DATABASE_URL),
   databaseSsl: process.env.DATABASE_SSL === 'true' || (nodeEnv === 'production' && process.env.DATABASE_SSL !== 'false'),
-  databaseSslCaPath: process.env.DATABASE_SSL_CA_PATH || undefined,
+  databaseSslCaPath: process.env.DATABASE_SSL_CA_PATH?.trim() || undefined,
   supabaseUrl: process.env.SUPABASE_URL || undefined,
   supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY || undefined,
   locationRetentionDays: Number(process.env.LOCATION_RETENTION_DAYS ?? 30),

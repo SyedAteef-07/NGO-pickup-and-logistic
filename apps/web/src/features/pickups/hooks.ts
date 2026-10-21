@@ -1,9 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiRequest } from '../../api/client'
 import { isLiveAdmin } from './adapters'
 import { calculateAiLogistics } from './aiLogistics'
-import { fetchPickups, fetchVehicleAssignments } from './api'
-import type { FoodRequestSummary, Pickup, PickupStatus, VehicleAssignmentSummary } from './types'
+import {
+  fetchDrivers,
+  fetchFoodRequests,
+  fetchPickups,
+  fetchVehicleAssignments,
+  fetchVehicles,
+  fetchVolunteers,
+} from './api'
+import type {
+  AssignmentStatusLive,
+  FoodRequestSummary,
+  LiveAssignment,
+  Pickup,
+  PickupStatus,
+  VehicleAssignmentSummary,
+} from './types'
 
 export const initialDemoPickups: Pickup[] = [
   {
@@ -78,6 +91,50 @@ export function updateDemoPickupStatus(pickupId: string, status: PickupStatus) {
     const next = list.map(p => (p.id === pickupId ? { ...p, status } : p))
     window.localStorage.setItem('aa:demo-pickups', JSON.stringify(next))
   } catch {}
+}
+
+export function saveDemoAssignment(assignment: LiveAssignment) {
+  try {
+    let map: Record<string, LiveAssignment> = {}
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('aa:demo-assignments') : null
+    if (stored) {
+      map = JSON.parse(stored)
+    }
+    map[assignment.pickupId] = assignment
+    map[assignment.id] = assignment
+    window.localStorage.setItem('aa:demo-assignments', JSON.stringify(map))
+  } catch {}
+}
+
+export function getDemoAssignment(pickupIdOrAssignmentId: string): LiveAssignment | null {
+  try {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('aa:demo-assignments') : null
+    if (stored) {
+      const map = JSON.parse(stored)
+      return map[pickupIdOrAssignmentId] || null
+    }
+  } catch {}
+  return null
+}
+
+export function updateDemoAssignmentStatus(assignmentId: string, status: AssignmentStatusLive): LiveAssignment | null {
+  try {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('aa:demo-assignments') : null
+    if (stored) {
+      const map = JSON.parse(stored)
+      const existing = map[assignmentId]
+      if (existing) {
+        const updated: LiveAssignment = { ...existing, status, version: (existing.version || 0) + 1 }
+        map[assignmentId] = updated
+        if (existing.pickupId) {
+          map[existing.pickupId] = updated
+        }
+        window.localStorage.setItem('aa:demo-assignments', JSON.stringify(map))
+        return updated
+      }
+    }
+  } catch {}
+  return null
 }
 
 export function syncPickupsWithDonations(basePickups: Pickup[]): Pickup[] {
@@ -282,11 +339,13 @@ export function useFoodRequests() {
   const [foodRequests, setFoodRequests] = useState<FoodRequestSummary[]>([])
   const [loading, setLoading] = useState(false)
   const [isDemoFallback, setIsDemoFallback] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let active = true
-    const fetchRequests = async () => {
-      setLoading(true)
+  const loadRequests = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+
+    if (!isLiveAdmin()) {
       let localDonations: FoodRequestSummary[] = []
       try {
         const raw = typeof window !== 'undefined' ? window.localStorage.getItem('aa:donations') : null
@@ -296,37 +355,56 @@ export function useFoodRequests() {
             localDonations = parsed
           }
         }
-      } catch {
-        // ignore localStorage errors
-      }
+      } catch {}
 
-      try {
-        const res = await apiRequest<{ items: FoodRequestSummary[] }>('food-requests')
-        if (active) {
-          if (Array.isArray(res?.items) && res.items.length > 0) {
-            setFoodRequests([...localDonations, ...res.items])
-            setIsDemoFallback(false)
-          } else {
-            setFoodRequests([...localDonations, ...fallbackDemoFoodRequests])
-            setIsDemoFallback(true)
-          }
-        }
-      } catch {
-        if (active) {
-          setFoodRequests([...localDonations, ...fallbackDemoFoodRequests])
-          setIsDemoFallback(true)
-        }
-      } finally {
-        if (active) setLoading(false)
-      }
+      setFoodRequests([...localDonations, ...fallbackDemoFoodRequests])
+      setIsDemoFallback(true)
+      setLoading(false)
+      return
     }
-    void fetchRequests()
-    return () => {
-      active = false
+
+    try {
+      const res = await fetchFoodRequests()
+      if (Array.isArray(res?.items)) {
+        setFoodRequests(res.items)
+        setIsDemoFallback(false)
+      } else {
+        setFoodRequests([])
+        setIsDemoFallback(false)
+      }
+    } catch (err: unknown) {
+      // In live admin mode, report the error honestly rather than pretending live succeeded with fake data
+      const message = err instanceof Error ? err.message : 'Unable to fetch food requests from server.'
+      setError(message)
+      setFoodRequests([])
+      setIsDemoFallback(false)
+    } finally {
+      setLoading(false)
     }
   }, [])
 
-  return { foodRequests, loading, isDemoFallback }
+  useEffect(() => {
+    void loadRequests()
+    const handleSync = () => void loadRequests()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleSync)
+      window.addEventListener('focus', handleSync)
+      let bc: BroadcastChannel | null = null
+      try {
+        if ('BroadcastChannel' in window) {
+          bc = new BroadcastChannel('aahara_donations')
+          bc.onmessage = () => void loadRequests()
+        }
+      } catch {}
+      return () => {
+        window.removeEventListener('storage', handleSync)
+        window.removeEventListener('focus', handleSync)
+        if (bc) bc.close()
+      }
+    }
+  }, [loadRequests])
+
+  return { foodRequests, loading, isDemoFallback, error, reload: loadRequests }
 }
 
 export function useAssignWizardResources() {
@@ -342,42 +420,65 @@ export function useAssignWizardResources() {
     let active = true
     const loadResources = async () => {
       setLoading(true)
+
+      if (!isLiveAdmin()) {
+        if (active) {
+          setVolunteers([])
+          setDrivers([])
+          setVehicles([])
+          setLoading(false)
+        }
+        return
+      }
+
       // Check Volunteers (Team 1)
       try {
-        const volRes = await apiRequest<{ items: unknown[] }>('volunteers')
+        const volRes = await fetchVolunteers()
         if (active) {
-          setVolunteers(volRes?.items || [])
-          setWaitingTeam1(null)
+          if (Array.isArray(volRes?.items) && volRes.items.length > 0) {
+            setVolunteers(volRes.items)
+            setWaitingTeam1(null)
+          } else {
+            setWaitingTeam1('Team 1 Volunteers API: no records returned')
+          }
         }
       } catch {
         if (active) {
-          setWaitingTeam1('Waiting for Team 1 API')
+          setWaitingTeam1('Waiting for Team 1 API (GET /volunteers)')
         }
       }
 
       // Check Drivers (Team 5)
       try {
-        const drvRes = await apiRequest<{ items: unknown[] }>('drivers')
+        const drvRes = await fetchDrivers()
         if (active) {
-          setDrivers(drvRes?.items || [])
-          setWaitingTeam5Drivers(null)
+          if (Array.isArray(drvRes?.items) && drvRes.items.length > 0) {
+            setDrivers(drvRes.items)
+            setWaitingTeam5Drivers(null)
+          } else {
+            setWaitingTeam5Drivers('Team 5 Drivers API: no records returned')
+          }
         }
       } catch {
         if (active) {
-          setWaitingTeam5Drivers('Waiting for Team 5 API')
+          setWaitingTeam5Drivers('Waiting for Team 5 API (GET /drivers)')
         }
       }
 
       // Check Vehicles (Team 5)
       try {
-        const vehRes = await apiRequest<{ items: unknown[] }>('vehicles')
+        const vehRes = await fetchVehicles()
         if (active) {
-          setVehicles(vehRes?.items || [])
-          setWaitingTeam5Vehicles(null)
+          if (Array.isArray(vehRes?.items) && vehRes.items.length > 0) {
+            setVehicles(vehRes.items)
+            setWaitingTeam5Vehicles(null)
+          } else {
+            setWaitingTeam5Vehicles('Team 5 Vehicles API: no records returned')
+          }
         }
       } catch {
         if (active) {
-          setWaitingTeam5Vehicles('Waiting for Team 5 API')
+          setWaitingTeam5Vehicles('Waiting for Team 5 API (GET /vehicles)')
         }
       }
 

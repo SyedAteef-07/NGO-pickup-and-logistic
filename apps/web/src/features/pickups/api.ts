@@ -6,11 +6,16 @@ import type {
   LiveAssignment,
   Pickup,
   VehicleAssignmentSummary,
+  FoodRequestSummary,
 } from './types'
 
-function getAuthHeaders(): Record<string, string> {
-  const token = getLiveAccessToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const token = await getLiveAccessToken()
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
 }
 
 export async function fetchPickups(
@@ -18,20 +23,20 @@ export async function fetchPickups(
 ): Promise<{ items: Pickup[]; nextCursor: string | null }> {
   const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
   return apiRequest<{ items: Pickup[]; nextCursor: string | null }>(`pickups${query}`, {
-    headers: getAuthHeaders(),
+    headers: await getAuthHeaders(),
   })
 }
 
 export async function fetchPickupById(id: string): Promise<Pickup> {
   return apiRequest<Pickup>(`pickups/${id}`, {
-    headers: getAuthHeaders(),
+    headers: await getAuthHeaders(),
   })
 }
 
 export async function createPickup(input: CreatePickupInput): Promise<Pickup> {
   return apiRequest<Pickup>('pickups', {
     method: 'POST',
-    headers: getAuthHeaders(),
+    headers: await getAuthHeaders(),
     body: input,
   })
 }
@@ -41,10 +46,11 @@ export async function createAssignment(
   input: CreateAssignmentInput,
   idempotencyKey: string
 ): Promise<LiveAssignment> {
+  const authHeaders = await getAuthHeaders()
   return apiRequest<LiveAssignment>(`pickups/${pickupId}/assignments`, {
     method: 'POST',
     headers: {
-      ...getAuthHeaders(),
+      ...authHeaders,
       'Idempotency-Key': idempotencyKey,
     },
     body: input,
@@ -59,7 +65,7 @@ export async function transitionAssignment(
 ): Promise<LiveAssignment> {
   return apiRequest<LiveAssignment>(`assignments/${assignmentId}/status`, {
     method: 'PATCH',
-    headers: getAuthHeaders(),
+    headers: await getAuthHeaders(),
     body: {
       action,
       expectedVersion,
@@ -74,8 +80,50 @@ export async function fetchVehicleAssignments(
   const response = await apiRequest<{ items: VehicleAssignmentSummary[]; nextCursor: string | null }>(
     `vehicles/${vehicleId}/assignments`,
     {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     }
   )
   return response.items || []
+}
+
+export async function fetchActiveAssignment(
+  pickupId: string
+): Promise<LiveAssignment | null> {
+  return apiRequest<LiveAssignment | null>(`pickups/${pickupId}/assignment`, {
+    headers: await getAuthHeaders(),
+  })
+}
+export async function reviewFoodSafety(
+  foodRequestId: string,
+  review: 'APPROVED' | 'REJECTED'
+): Promise<unknown> {
+  return apiRequest('food-requests/' + foodRequestId + '/safety-review', {
+    method: 'POST',
+    headers: await getAuthHeaders(),
+    body: { review },
+  });
+}
+
+export async function fetchFoodRequests(): Promise<{ items: FoodRequestSummary[]; nextCursor: string | null }> {
+  return apiRequest<{ items: FoodRequestSummary[]; nextCursor: string | null }>('food-requests', {
+    headers: await getAuthHeaders(),
+  })
+}
+
+export async function fetchVolunteers(): Promise<{ items: unknown[]; nextCursor: string | null }> {
+  return apiRequest<{ items: unknown[]; nextCursor: string | null }>('volunteers', {
+    headers: await getAuthHeaders(),
+  })
+}
+
+export async function fetchDrivers(): Promise<{ items: unknown[]; nextCursor: string | null }> {
+  return apiRequest<{ items: unknown[]; nextCursor: string | null }>('drivers', {
+    headers: await getAuthHeaders(),
+  })
+}
+
+export async function fetchVehicles(): Promise<{ items: unknown[]; nextCursor: string | null }> {
+  return apiRequest<{ items: unknown[]; nextCursor: string | null }>('vehicles', {
+    headers: await getAuthHeaders(),
+  })
 }
