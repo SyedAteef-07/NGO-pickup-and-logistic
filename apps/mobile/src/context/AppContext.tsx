@@ -7,7 +7,7 @@ import { useLanguage } from './LanguageContext';
 import { restoreAppUser, signOut } from '../api/auth';
 
 type AppValue = {
-  role: Role; login: (role: Exclude<Role, null>) => void; loginAuthenticated: (role: Exclude<Role, null>) => void; logout: () => void;
+  role: Role; mode: 'demo' | 'live' | null; login: (role: Exclude<Role, null>) => void; loginAuthenticated: (role: Exclude<Role, null>) => void; logout: () => void;
   assignments: VolunteerAssignment[]; updateAssignment: (id: string, status: AssignmentStatus, reason?: string) => void;
   slots: AvailabilitySlot[]; saveSlot: (slot: AvailabilitySlot) => void; deleteSlot: (id: string) => void;
   volunteer: VolunteerProfile; saveVolunteer: (profile: VolunteerProfile) => void;
@@ -19,11 +19,13 @@ const Context = createContext<AppValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   const [role, setRole] = useState<Role>(null);
+  const [mode, setMode] = useState<'demo' | 'live' | null>(null);
   const demoChosen = useRef(false);
   useEffect(() => {
     let active = true;
     restoreAppUser().then(user => {
       if (active && !demoChosen.current && (user?.role === 'DONOR' || user?.role === 'VOLUNTEER')) {
+        setMode('live');
         setRole(user.role === 'DONOR' ? 'donor' : 'volunteer');
       }
     }).catch(() => {});
@@ -58,12 +60,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     notify('Request cancelled'); return true;
   };
   const value = {
-    role,
-    login: (next: Exclude<Role, null>) => { demoChosen.current = true; void signOut(); setRole(next); },
-    loginAuthenticated: (next: Exclude<Role, null>) => { demoChosen.current = false; setRole(next); },
-    logout: () => { demoChosen.current = false; setRole(null); void signOut(); },
-    assignments, updateAssignment,
-    slots, saveSlot, deleteSlot, volunteer, saveVolunteer, donor, saveDonor, requests, submitRequest, cancelRequest, notify };
+    role, mode,
+    login: (next: Exclude<Role, null>) => { demoChosen.current = true; void signOut(); setMode('demo'); setRole(next); },
+    loginAuthenticated: (next: Exclude<Role, null>) => { demoChosen.current = false; setMode('live'); setRole(next); },
+    logout: () => { demoChosen.current = false; setMode(null); setRole(null); void signOut(); },
+    assignments: mode === 'live' && role === 'volunteer' ? [] : assignments, updateAssignment,
+    slots: mode === 'live' && role === 'volunteer' ? [] : slots, saveSlot, deleteSlot,
+    volunteer, saveVolunteer, donor, saveDonor, requests, submitRequest, cancelRequest, notify };
   return <Context.Provider value={value}>
     {children}
     {!!toast && <View pointerEvents="none" style={{ position: 'absolute', bottom: 88, alignSelf: 'center', backgroundColor: C.ink, paddingHorizontal: 18, paddingVertical: 13, borderRadius: 14, maxWidth: '90%', ...shadow }}>
