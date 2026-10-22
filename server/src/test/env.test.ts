@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDatabaseUrl } from '../config/env';
+import { parseDatabaseUrl, validateVolunteerInviteRedirectUrl } from '../config/env';
 
 describe('parseDatabaseUrl', () => {
   it('returns undefined for empty or missing values', () => {
@@ -25,6 +25,27 @@ describe('parseDatabaseUrl', () => {
       parseDatabaseUrl(sensitive);
     } catch (error) {
       expect((error as Error).message).not.toContain('secret-password-12345');
+    }
+  });
+});
+
+describe('volunteer invite redirect', () => {
+  it('accepts the local acceptance page in development and HTTPS in production', () => {
+    expect(() => validateVolunteerInviteRedirectUrl('http://localhost:5173/accept-invite', 'development')).not.toThrow();
+    expect(() => validateVolunteerInviteRedirectUrl('https://example.org/accept-invite', 'production')).not.toThrow();
+    expect(() => validateVolunteerInviteRedirectUrl(undefined, 'development')).not.toThrow();
+  });
+
+  it('rejects nonlocal HTTP, another path, query redirects and credentials', () => {
+    for (const value of [
+      'http://example.org/accept-invite',
+      'http://localhost:5173/accept-invite',
+      'https://example.org/other',
+      'https://example.org/accept-invite?redirect_to=https://elsewhere.example',
+      'https://user:pass@example.org/accept-invite',
+    ]) {
+      const environment = value.startsWith('http://localhost') ? 'production' : 'development';
+      expect(() => validateVolunteerInviteRedirectUrl(value, environment)).toThrow('VOLUNTEER_INVITE_REDIRECT_URL');
     }
   });
 });

@@ -34,14 +34,21 @@ describe.skipIf(!enabled)('ADMIN Volunteer Management persistence', () => {
     const volunteerIds: string[] = [];
     const teamIds: string[] = [];
     const namePrefix = `AdminTest-${randomUUID()}`;
+    const volunteerAuthUserId = randomUUID();
+    const adminAuthUserId = randomUUID();
     try {
-      identity.authUserId = randomUUID();
+      identity.authUserId = adminAuthUserId;
       appUserIds.push((await getPool().query<{ id: string }>(
         `INSERT INTO app.app_users(auth_user_id, role) VALUES ($1, 'ADMIN') RETURNING id`, [identity.authUserId]
       )).rows[0].id);
+      const volunteerAppUserId = (await getPool().query<{ id: string }>(
+        `INSERT INTO app.app_users(auth_user_id, role) VALUES ($1, 'VOLUNTEER') RETURNING id`, [volunteerAuthUserId]
+      )).rows[0].id;
+      appUserIds.push(volunteerAppUserId);
       for (const suffix of ['One', 'Two']) {
         personIds.push((await getPool().query<{ id: string }>(
-          'INSERT INTO app.people(name) VALUES ($1) RETURNING id', [`${namePrefix}-${suffix}`]
+          'INSERT INTO app.people(app_user_id, name) VALUES ($1, $2) RETURNING id',
+          [suffix === 'One' ? volunteerAppUserId : null, `${namePrefix}-${suffix}`]
         )).rows[0].id);
         volunteerIds.push((await getPool().query<{ id: string }>(
           'INSERT INTO app.volunteers(person_id, registration_code) VALUES ($1, $2) RETURNING id',
@@ -62,6 +69,11 @@ describe.skipIf(!enabled)('ADMIN Volunteer Management persistence', () => {
         .send({ name: namePrefix, leaderVolunteerId: volunteerIds[0], memberIds: [volunteerIds[0]] });
       expect(created.status).toBe(201);
       teamIds.push(created.body.data.id);
+      identity.authUserId = volunteerAuthUserId;
+      const ownTeam = await request(app).get('/api/v1/volunteers/me/teams').set('Authorization', 'Bearer integration-token');
+      expect(ownTeam.status).toBe(200);
+      expect(ownTeam.body.data.items).toEqual([{ id: teamIds[0], name: namePrefix, isLeader: true }]);
+      identity.authUserId = adminAuthUserId;
       const updated = await request(app).patch(`/api/v1/teams/${teamIds[0]}`)
         .set('Authorization', 'Bearer integration-token')
         .send({ memberIds: volunteerIds });
@@ -71,8 +83,17 @@ describe.skipIf(!enabled)('ADMIN Volunteer Management persistence', () => {
         'SELECT volunteer_id FROM app.team_members WHERE team_id = $1', [teamIds[0]]
       )).rows.map(row => row.volunteer_id).sort();
       expect(stored).toEqual([...volunteerIds].sort());
+      const removed = await request(app).patch(`/api/v1/teams/${teamIds[0]}`)
+        .set('Authorization', 'Bearer integration-token')
+        .send({ memberIds: [volunteerIds[1]], leaderVolunteerId: volunteerIds[1] });
+      expect(removed.status).toBe(200);
+      identity.authUserId = volunteerAuthUserId;
+      const afterRemoval = await request(app).get('/api/v1/volunteers/me/teams').set('Authorization', 'Bearer integration-token');
+      expect(afterRemoval.status).toBe(200);
+      expect(afterRemoval.body.data.items).toEqual([]);
+      identity.authUserId = adminAuthUserId;
       const secondTeam = await request(app).post('/api/v1/teams').set('Authorization', 'Bearer integration-token')
-        .send({ name: `${namePrefix}-other`, memberIds: [volunteerIds[0]] });
+        .send({ name: `${namePrefix}-other`, memberIds: [volunteerIds[1]] });
       if (secondTeam.status === 201) teamIds.push(secondTeam.body.data.id);
       expect(secondTeam.status).toBe(409);
       expect((await getPool().query<{ count: string }>(

@@ -6,7 +6,9 @@ import * as volunteerService from './service';
 import {
   listTeamsQuerySchema,
   listVolunteersQuerySchema,
+  type CreateAdminVolunteerInput,
   type CreateTeamInput,
+  type UpdateAdminVolunteerInput,
   type UpdateOwnProfileInput,
   type UpdateTeamInput,
 } from './schemas';
@@ -15,6 +17,13 @@ export const getOwnProfileHandler: RequestHandler = async (_request, response, n
   try {
     const actor = response.locals.appUser as AppUser;
     sendSuccess(response, await volunteerService.getOwnProfile(actor));
+  } catch (error) { next(error); }
+};
+
+export const listOwnTeamsHandler: RequestHandler = async (request, response, next) => {
+  try {
+    if (Object.keys(request.query).length) throw new HttpError(400, 'VALIDATION_ERROR', 'Team query is invalid.');
+    sendSuccess(response, await volunteerService.listOwnTeams(response.locals.appUser as AppUser));
   } catch (error) { next(error); }
 };
 
@@ -64,6 +73,24 @@ export const getAdminVolunteerHandler: RequestHandler = async (request, response
     const id = uuidSchema.safeParse(request.params.id);
     if (!id.success) throw new HttpError(400, 'VALIDATION_ERROR', 'Volunteer ID must be a UUID.');
     sendSuccess(response, await volunteerService.getAdminVolunteer(response.locals.appUser as AppUser, id.data));
+  } catch (error) { next(error); }
+};
+
+export const createAdminVolunteerHandler: RequestHandler = async (_request, response, next) => {
+  try {
+    sendSuccess(response, await volunteerService.createAdminVolunteer(
+      response.locals.appUser as AppUser, response.locals.validatedBody as CreateAdminVolunteerInput
+    ), 201);
+  } catch (error) { next(error); }
+};
+
+export const updateAdminVolunteerHandler: RequestHandler = async (request, response, next) => {
+  try {
+    const id = uuidSchema.safeParse(request.params.id);
+    if (!id.success) throw new HttpError(400, 'VALIDATION_ERROR', 'Volunteer ID must be a UUID.');
+    sendSuccess(response, await volunteerService.updateAdminVolunteer(
+      response.locals.appUser as AppUser, id.data, response.locals.validatedBody as UpdateAdminVolunteerInput
+    ));
   } catch (error) { next(error); }
 };
 

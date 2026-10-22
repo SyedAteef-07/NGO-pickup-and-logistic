@@ -6,6 +6,7 @@ const { verify, findUser, repo, withTransaction } = vi.hoisted(() => ({
   findUser: vi.fn(),
   withTransaction: vi.fn(),
   repo: {
+    findByAppUserId: vi.fn(), listOwnTeamsByAppUserId: vi.fn(),
     listVolunteers: vi.fn(), findVolunteerById: vi.fn(),
     listTeams: vi.fn(), findTeamById: vi.fn(), findTeamForUpdate: vi.fn(),
     findExistingVolunteerIds: vi.fn(), insertTeam: vi.fn(), updateTeam: vi.fn(), replaceTeamMembers: vi.fn(),
@@ -47,6 +48,8 @@ beforeEach(() => {
   repo.insertTeam.mockResolvedValue(teamId);
   repo.updateTeam.mockResolvedValue(undefined);
   repo.replaceTeamMembers.mockResolvedValue(undefined);
+  repo.findByAppUserId.mockResolvedValue(volunteerRow);
+  repo.listOwnTeamsByAppUserId.mockResolvedValue([]);
 });
 
 describe('ADMIN Volunteer Management API', () => {
@@ -145,5 +148,42 @@ describe('ADMIN Volunteer Management API', () => {
     repo.replaceTeamMembers.mockRejectedValueOnce({ code: '23505' });
     expect((await request(app).patch(`/api/v1/teams/${teamId}`).set(auth)
       .send({ memberIds: [volunteerId, secondVolunteerId] })).status).toBe(409);
+  });
+});
+
+describe('Volunteer own team membership', () => {
+  beforeEach(() => { findUser.mockResolvedValue({ ...actor, role: 'VOLUNTEER' }); });
+
+  it('returns only the authenticated Volunteer teams and leader flags in the usual page envelope', async () => {
+    repo.listOwnTeamsByAppUserId.mockResolvedValue([
+      { id: teamId, name: 'Team Alpha', is_leader: true },
+      { id: secondVolunteerId, name: 'Team Beta', is_leader: false },
+    ]);
+    const response = await request(app).get('/api/v1/volunteers/me/teams').set(auth);
+    expect(response.status).toBe(200);
+    expect(repo.listOwnTeamsByAppUserId).toHaveBeenCalledWith(actor.id);
+    expect(response.body.data).toEqual({ items: [
+      { id: teamId, name: 'Team Alpha', isLeader: true },
+      { id: secondVolunteerId, name: 'Team Beta', isLeader: false },
+    ], nextCursor: null });
+    expect(JSON.stringify(response.body)).not.toContain('memberIds');
+  });
+
+  it('returns an empty list when this Volunteer has no team, and 404 if the profile is missing', async () => {
+    const empty = await request(app).get('/api/v1/volunteers/me/teams').set(auth);
+    expect(empty.status).toBe(200);
+    expect(empty.body.data.items).toEqual([]);
+    repo.findByAppUserId.mockResolvedValueOnce(null);
+    expect((await request(app).get('/api/v1/volunteers/me/teams').set(auth)).status).toBe(404);
+  });
+
+  it('rejects another Volunteer ID and forbids unauthenticated, DONOR and ADMIN callers', async () => {
+    expect((await request(app).get('/api/v1/volunteers/me/teams')).status).toBe(401);
+    expect((await request(app).get(`/api/v1/volunteers/me/teams?volunteerId=${volunteerId}`).set(auth)).status).toBe(400);
+    for (const role of ['DONOR', 'ADMIN']) {
+      findUser.mockResolvedValueOnce({ ...actor, role });
+      expect((await request(app).get('/api/v1/volunteers/me/teams').set(auth)).status).toBe(403);
+    }
+    expect(repo.listOwnTeamsByAppUserId).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import { requireRole } from '../../middleware/authorize';
 import { validateBody } from '../../middleware/validate';
 import {
   createAdminTeamHandler,
+  createAdminVolunteerHandler,
   createOwnAvailabilityHandler,
   getAdminTeamHandler,
   getAdminVolunteerHandler,
@@ -11,11 +12,13 @@ import {
   listAdminTeamsHandler,
   listAdminVolunteersHandler,
   listOwnAvailabilityHandler,
+  listOwnTeamsHandler,
   replaceOwnAvailabilityHandler,
   updateAdminTeamHandler,
+  updateAdminVolunteerHandler,
   updateOwnProfileHandler,
 } from './controller';
-import { availabilityWriteSchema, createTeamSchema, updateOwnProfileSchema, updateTeamSchema } from './schemas';
+import { availabilityWriteSchema, createAdminVolunteerSchema, createTeamSchema, updateAdminVolunteerSchema, updateOwnProfileSchema, updateTeamSchema } from './schemas';
 
 export const volunteerRoutes = Router();
 const selfProfileRoutes = Router();
@@ -24,10 +27,13 @@ const teamRoutes = Router();
 selfProfileRoutes.get('/me', requireAuth, requireRole('VOLUNTEER'), getOwnProfileHandler);
 selfProfileRoutes.patch('/me', requireAuth, requireRole('VOLUNTEER'), validateBody(updateOwnProfileSchema), updateOwnProfileHandler);
 selfProfileRoutes.get('/me/availability', requireAuth, requireRole('VOLUNTEER'), listOwnAvailabilityHandler);
+selfProfileRoutes.get('/me/teams', requireAuth, requireRole('VOLUNTEER'), listOwnTeamsHandler);
 selfProfileRoutes.post('/me/availability', requireAuth, requireRole('VOLUNTEER'), validateBody(availabilityWriteSchema), createOwnAvailabilityHandler);
 selfProfileRoutes.patch('/me/availability/:id', requireAuth, requireRole('VOLUNTEER'), validateBody(availabilityWriteSchema), replaceOwnAvailabilityHandler);
 selfProfileRoutes.get('/', requireAuth, requireRole('ADMIN'), listAdminVolunteersHandler);
+selfProfileRoutes.post('/', requireAuth, requireRole('ADMIN'), validateBody(createAdminVolunteerSchema), createAdminVolunteerHandler);
 selfProfileRoutes.get('/:id', requireAuth, requireRole('ADMIN'), getAdminVolunteerHandler);
+selfProfileRoutes.patch('/:id', requireAuth, requireRole('ADMIN'), validateBody(updateAdminVolunteerSchema), updateAdminVolunteerHandler);
 
 teamRoutes.get('/', requireAuth, requireRole('ADMIN'), listAdminTeamsHandler);
 teamRoutes.get('/:id', requireAuth, requireRole('ADMIN'), getAdminTeamHandler);
