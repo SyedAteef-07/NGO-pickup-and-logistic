@@ -4,7 +4,7 @@ import type { UpdateOwnProfileInput } from './schemas';
 import type { CreateAvailabilityRequest } from '@aaharaconnect/shared';
 import { uuidSchema } from '@aaharaconnect/shared';
 import { HttpError } from '../../middleware/errorHandler';
-import type { ListTeamsQuery, ListVolunteersQuery } from './schemas';
+import type { CreateAdminVolunteerInput, ListTeamsQuery, ListVolunteersQuery, UpdateAdminVolunteerInput } from './schemas';
 
 export type VolunteerProfileRow = {
   id: string;
@@ -212,11 +212,83 @@ export async function listVolunteers(query: ListVolunteersQuery): Promise<{ rows
   return { rows, nextCursor: result.rows.length > query.limit ? encodeCursor(rows[rows.length - 1]) : null };
 }
 
-export async function findVolunteerById(id: string): Promise<VolunteerProfileRow | null> {
-  const result = await getPool().query<VolunteerProfileRow>(
+export async function findVolunteerById(id: string, client?: PoolClient): Promise<VolunteerProfileRow | null> {
+  const result = await (client ?? getPool()).query<VolunteerProfileRow>(
     `SELECT ${volunteerSelect} FROM app.volunteers v JOIN app.people p ON p.id = v.person_id WHERE v.id = $1`, [id]
   );
   return result.rows[0] ?? null;
+}
+
+export async function findAdminVolunteerConflict(
+  registrationCode: string, phoneE164: string | null, excludeVolunteerId?: string
+): Promise<'registrationCode' | 'phoneE164' | null> {
+  const code = await getPool().query(
+    'SELECT 1 FROM app.volunteers WHERE registration_code = $1 AND ($2::uuid IS NULL OR id <> $2) LIMIT 1',
+    [registrationCode, excludeVolunteerId ?? null]
+  );
+  if (code.rowCount) return 'registrationCode';
+  if (phoneE164) {
+    const phone = await getPool().query(
+      `SELECT 1 FROM app.people p WHERE p.phone_e164 = $1
+       AND ($2::uuid IS NULL OR p.id <> (SELECT person_id FROM app.volunteers WHERE id = $2)) LIMIT 1`,
+      [phoneE164, excludeVolunteerId ?? null]
+    );
+    if (phone.rowCount) return 'phoneE164';
+  }
+  return null;
+}
+
+export async function insertInvitedVolunteer(
+  authUserId: string, input: CreateAdminVolunteerInput, client: PoolClient
+): Promise<VolunteerProfileRow> {
+  const appUser = await client.query<{ id: string }>(
+    `INSERT INTO app.app_users(auth_user_id, role, display_name)
+     VALUES ($1, 'VOLUNTEER', $2) RETURNING id`, [authUserId, input.name]
+  );
+  const person = await client.query<{ id: string }>(
+    'INSERT INTO app.people(app_user_id, name, phone_e164) VALUES ($1, $2, $3) RETURNING id',
+    [appUser.rows[0].id, input.name, input.phoneE164]
+  );
+  const volunteer = await client.query<{ id: string }>(
+    `INSERT INTO app.volunteers(person_id, registration_code, skills, status)
+     VALUES ($1, $2, $3::text[], $4) RETURNING id`,
+    [person.rows[0].id, input.registrationCode, input.skills, input.status]
+  );
+  const row = await findVolunteerById(volunteer.rows[0].id, client);
+  if (!row) throw new HttpError(500, 'INTERNAL_ERROR', 'Created volunteer could not be read.');
+  return row;
+}
+
+export async function findVolunteerForAdminUpdate(id: string, client: PoolClient): Promise<VolunteerProfileRow | null> {
+  const result = await client.query<VolunteerProfileRow>(
+    `SELECT v.id, v.person_id, v.registration_code, v.skills, v.status, p.name, p.phone_e164
+     FROM app.volunteers v JOIN app.people p ON p.id = v.person_id
+     WHERE v.id = $1 FOR UPDATE OF v, p`, [id]
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function updateAdminVolunteerRows(
+  current: VolunteerProfileRow, input: UpdateAdminVolunteerInput, client: PoolClient
+): Promise<VolunteerProfileRow> {
+  await client.query(
+    'UPDATE app.people SET name = $2, phone_e164 = $3 WHERE id = $1',
+    [current.person_id, input.name ?? current.name, input.phoneE164 === undefined ? current.phone_e164 : input.phoneE164]
+  );
+  if (input.name !== undefined) {
+    await client.query(
+      `UPDATE app.app_users u SET display_name = $2, updated_at = now()
+       FROM app.people p WHERE p.app_user_id = u.id AND p.id = $1`,
+      [current.person_id, input.name]
+    );
+  }
+  await client.query(
+    `UPDATE app.volunteers SET registration_code = $2, skills = $3::text[], status = $4 WHERE id = $1`,
+    [current.id, input.registrationCode ?? current.registration_code, input.skills ?? current.skills, input.status ?? current.status]
+  );
+  const row = await findVolunteerById(current.id, client);
+  if (!row) throw new HttpError(500, 'INTERNAL_ERROR', 'Updated volunteer could not be read.');
+  return row;
 }
 
 export type TeamRow = PageRow & {
@@ -224,6 +296,22 @@ export type TeamRow = PageRow & {
   leader_volunteer_id: string | null;
   member_ids: string[];
 };
+
+export type OwnTeamRow = { id: string; name: string; is_leader: boolean };
+
+export async function listOwnTeamsByAppUserId(appUserId: string): Promise<OwnTeamRow[]> {
+  const result = await getPool().query<OwnTeamRow>(
+    `SELECT t.id, t.name, (t.leader_volunteer_id = v.id) AS is_leader
+     FROM app.people p
+     JOIN app.volunteers v ON v.person_id = p.id
+     JOIN app.team_members tm ON tm.volunteer_id = v.id
+     JOIN app.teams t ON t.id = tm.team_id
+     WHERE p.app_user_id = $1
+     ORDER BY t.name, t.id`,
+    [appUserId]
+  );
+  return result.rows;
+}
 
 const teamSelect = `SELECT t.id, t.name, t.leader_volunteer_id, t.created_at,
   COALESCE(array_agg(tm.volunteer_id ORDER BY tm.joined_at, tm.volunteer_id)

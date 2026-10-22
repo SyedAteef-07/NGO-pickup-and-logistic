@@ -3,6 +3,8 @@ import { JSDOM } from 'jsdom'
 import { createServer } from 'vite'
 import React, { act } from 'react'
 
+process.env.VITE_API_BASE_URL = 'http://localhost:4000/api/v1'
+
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url:'http://localhost/', pretendToBeVisual:true })
 const { window } = dom
 for (const key of ['window','document','Node','Element','HTMLElement','MutationObserver','Event','MouseEvent']) globalThis[key] = key === 'window' ? window : window[key]
@@ -139,6 +141,225 @@ try {
 
   await act(async () => root.unmount())
 
+  // Exercise the live admin Volunteer form with a local, deterministic API stub.
+  const liveRequests = []
+  let liveRoster = []
+  let liveTeams = []
+  let failNextEdit = false
+  let failNextTeamCreate = false
+  const apiReply = (data, status = 200) => new Response(JSON.stringify({ success:true, data }), { status, headers:{ 'Content-Type':'application/json' } })
+  globalThis.fetch = async (url, options = {}) => {
+    const path = new URL(url).pathname
+    const method = options.method ?? 'GET'
+    liveRequests.push({ path, method, headers: new Headers(options.headers), body: options.body ? JSON.parse(options.body) : null })
+    if (method === 'GET' && path.endsWith('/volunteers')) return apiReply({ items:liveRoster, nextCursor:null })
+    if (method === 'GET' && path.endsWith('/teams')) return apiReply({ items:liveTeams, nextCursor:null })
+    if (method === 'GET' && path.includes('/teams/')) return apiReply(liveTeams.find(team => team.id === path.split('/').at(-1)))
+    if (method === 'POST' && path.endsWith('/teams')) {
+      if (failNextTeamCreate) {
+        failNextTeamCreate = false
+        return new Response(JSON.stringify({ success:false, error:{ code:'RESOURCE_CONFLICT', message:'Team name or membership conflicts with an existing record.' } }), { status:409, headers:{ 'Content-Type':'application/json' } })
+      }
+      const input = JSON.parse(options.body)
+      const created = { id:'8d253313-d824-47a1-83dd-5f7dc5c84f60', ...input }
+      liveTeams = [created, ...liveTeams]
+      return apiReply(created, 201)
+    }
+    if (method === 'PATCH' && path.includes('/teams/')) {
+      const input = JSON.parse(options.body)
+      liveTeams = liveTeams.map(team => team.id === path.split('/').at(-1) ? { ...team, ...input } : team)
+      return apiReply(liveTeams[0])
+    }
+    if (method === 'POST' && path.endsWith('/volunteers')) {
+      const input = JSON.parse(options.body)
+      const created = { id:'7b6e0f4e-1ed9-466a-97a9-314eb6f64aa5', personId:'f50a3e0e-9f8c-4293-bb2b-fc55e4b3d3d8', registrationCode:input.registrationCode, name:input.name, phoneE164:input.phoneE164, skills:input.skills, status:input.status }
+      liveRoster = [created, ...liveRoster]
+      return apiReply(created, 201)
+    }
+    if (method === 'PATCH' && path.includes('/volunteers/')) {
+      if (failNextEdit) {
+        failNextEdit = false
+        return new Response(JSON.stringify({ success:false, error:{ code:'RESOURCE_CONFLICT', message:'Registration code is already in use.' } }), { status:409, headers:{ 'Content-Type':'application/json' } })
+      }
+      const input = JSON.parse(options.body)
+      liveRoster = liveRoster.map(item => item.id === path.split('/').at(-1) ? { ...item, ...input } : item)
+      return apiReply(liveRoster[0])
+    }
+    throw new Error(`Unexpected mocked API request: ${method} ${path}`)
+  }
+  const { default:LiveVolunteers } = await server.ssrLoadModule('/src/components/volunteers/LiveVolunteers.tsx')
+  const liveRoot = createRoot(document.getElementById('root'))
+  const flush = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) }) }
+  await act(async () => liveRoot.render(React.createElement(LiveVolunteers, { token:'test-access-token' })))
+  await flush()
+  await click(button('Add Volunteer'))
+  assert.ok(document.querySelector('.modal input[type="email"]'), 'Create needs an email field')
+  assert.equal(document.querySelector('.modal input[type="password"]'), null)
+  assert.equal(document.querySelector('.modal select[name="role"]'), null)
+  await click(document.querySelector('.modal button[type="submit"]'))
+  assert.match(document.querySelector('.modal [role="alert"]').textContent, /name/)
+  await setInput(document.querySelector('.modal input[placeholder="e.g. Kavya Iyer"]'), 'Kavya Iyer')
+  await click(document.querySelector('.modal button[type="submit"]'))
+  assert.match(document.querySelector('.modal [role="alert"]').textContent, /registration code/)
+  await setInput(document.querySelector('.modal input[placeholder="VOL-002"]'), 'VOL-002')
+  await click(document.querySelector('.modal button[type="submit"]'))
+  assert.match(document.querySelector('.modal [role="alert"]').textContent, /valid email/)
+  await setInput(document.querySelector('.modal input[type="email"]'), 'kavya@example.com')
+  await setInput(document.querySelector('.modal input[type="tel"]'), '+919876543210')
+  await setInput(document.querySelector('.modal input[placeholder="Driving, Packing"]'), 'Driving, Packing')
+  await click(document.querySelector('.modal button[type="submit"]'))
+  await flush()
+  const createRequest = liveRequests.find(item => item.method === 'POST')
+  assert.deepEqual(createRequest.body, { email:'kavya@example.com', name:'Kavya Iyer', phoneE164:'+919876543210', registrationCode:'VOL-002', skills:['Driving','Packing'], status:'ACTIVE' })
+  assert.equal(createRequest.headers.get('Authorization'), 'Bearer test-access-token')
+  assert.match(document.querySelector('.volunteer-table').textContent, /Kavya Iyer/)
+  assert.match(document.querySelector('.toast').textContent, /invitation sent/)
+  assert.ok(liveRequests.filter(item => item.method === 'GET' && item.path.endsWith('/volunteers')).length >= 2, 'Create refreshes the roster')
+  await click(button('Edit volunteer'))
+  assert.equal(document.querySelector('.modal input[type="email"]'), null, 'Email is immutable on edit')
+  await setInput(document.querySelector('.modal input[placeholder="e.g. Kavya Iyer"]'), 'Kavya Nair')
+  await click(document.querySelector('.modal button[type="submit"]'))
+  await flush()
+  const editRequest = liveRequests.find(item => item.method === 'PATCH')
+  assert.equal(editRequest.body.name, 'Kavya Nair')
+  assert.equal('email' in editRequest.body, false)
+  assert.equal('role' in editRequest.body, false)
+  assert.match(document.querySelector('.volunteer-table').textContent, /Kavya Nair/)
+  await click(button('Edit volunteer'))
+  failNextEdit = true
+  await click(document.querySelector('.modal button[type="submit"]'))
+  await flush()
+  assert.match(document.querySelector('.modal [role="alert"]').textContent, /already in use/)
+  await click(document.querySelector('.modal .dialog-footer .button-secondary'))
+  await act(async () => liveRoot.unmount())
+
+  // The live Team editor uses the Admin token and roster; successful writes refresh the list.
+  const secondLiveVolunteer = { id:'44bada71-76fd-41ad-a1af-b2cd9f2df902', personId:'be7ae967-a1aa-4557-b0e4-e1cb4dcb8707', registrationCode:'VOL-003', name:'Sanjay Verma', phoneE164:null, skills:[], status:'ACTIVE' }
+  liveRoster = [...liveRoster, secondLiveVolunteer]
+  const { default:LiveTeams } = await server.ssrLoadModule('/src/components/volunteers/LiveTeams.tsx')
+  const teamRoot = createRoot(document.getElementById('root'))
+  await act(async () => teamRoot.render(React.createElement(LiveTeams, { token:'test-access-token' })))
+  await flush()
+  await click(document.querySelector('.page-heading .button-primary'))
+  assert.ok(document.querySelector('.team-member-options'), 'Live roster must populate the form')
+  await click(document.querySelector('.modal button[type="submit"]'))
+  assert.match(document.querySelector('.modal [role="alert"]').textContent, /Team name is required/)
+  await setInput(document.querySelector('.modal .field input'), 'Test Rescue Team')
+  const memberBoxes = [...document.querySelectorAll('.team-member-option input')]
+  assert.equal(memberBoxes.length, 2)
+  await click(memberBoxes[0]); await click(memberBoxes[1])
+  await setSelect(document.querySelector('.modal select'), liveRoster[0].id)
+  failNextTeamCreate = true
+  await click(document.querySelector('.modal button[type="submit"]'))
+  await flush()
+  assert.match(document.querySelector('.modal [role="alert"]').textContent, /conflicts with an existing record/)
+  await click(document.querySelector('.modal button[type="submit"]'))
+  await flush()
+  const teamPosts = liveRequests.filter(item => item.method === 'POST' && item.path.endsWith('/teams'))
+  assert.equal(teamPosts.at(-1).headers.get('Authorization'), 'Bearer test-access-token')
+  assert.deepEqual(teamPosts.at(-1).body, { name:'Test Rescue Team', memberIds:liveRoster.map(item => item.id), leaderVolunteerId:liveRoster[0].id })
+  assert.equal(new Set(teamPosts.at(-1).body.memberIds).size, 2, 'Member IDs must remain unique')
+  assert.equal(document.querySelector('.modal'), null, 'Successful create closes the form')
+  assert.match(document.querySelector('.team-grid').textContent, /Test Rescue Team/)
+  assert.match(document.querySelector('.toast').textContent, /Team created successfully/)
+  assert.ok(liveRequests.filter(item => item.method === 'GET' && item.path.endsWith('/teams')).length >= 2, 'Team list refreshes after create')
+  await click(document.querySelector('.team-card-footer button'))
+  await flush()
+  await click(button('Edit Team'))
+  await setInput(document.querySelector('.modal .field input'), 'Updated Rescue Team')
+  await click([...document.querySelectorAll('.team-member-option input')][0])
+  await setSelect(document.querySelector('.modal select'), secondLiveVolunteer.id)
+  await click(document.querySelector('.modal button[type="submit"]'))
+  await flush()
+  const teamPatch = liveRequests.find(item => item.method === 'PATCH' && item.path.includes('/teams/'))
+  assert.deepEqual(teamPatch.body, { name:'Updated Rescue Team', memberIds:[secondLiveVolunteer.id], leaderVolunteerId:secondLiveVolunteer.id })
+  assert.equal(teamPatch.headers.get('Authorization'), 'Bearer test-access-token')
+  assert.match(document.querySelector('.team-grid').textContent, /Updated Rescue Team/)
+  assert.match(document.querySelector('.toast').textContent, /Team updated successfully/)
+  await act(async () => teamRoot.unmount())
+
+  // Public invite page uses a mocked Supabase session; no live Auth or Express call.
+  const inviteUser = { id:'14d56e99-3a27-4dbf-8d07-bd7ca06bc9ad', email:'volunteer@example.com' }
+  const inviteSession = { user:inviteUser }
+  const inviteCalls = { updates:[], signOut:[], verifyOtp:[] }
+  let releaseSession
+  let releaseUpdate
+  const waitingSession = new Promise(resolve => { releaseSession = resolve })
+  const waitingUpdate = new Promise(resolve => { releaseUpdate = resolve })
+  const fakeInviteAuth = {
+    getSession:() => waitingSession,
+    getUser:async () => ({ data:{ user:inviteUser }, error:null }),
+    verifyOtp:async input => { inviteCalls.verifyOtp.push(input); return { data:{ session:inviteSession }, error:null } },
+    updateUser:input => { inviteCalls.updates.push(input); return waitingUpdate },
+    signOut:async options => { inviteCalls.signOut.push(options); return { error:null } },
+  }
+  window.localStorage.setItem('aaharaconnect-language', 'en')
+  window.history.replaceState(null, '', '/accept-invite#type=invite&access_token=fake-token')
+  const inviteRoot = createRoot(document.getElementById('root'))
+  const requestsBeforeInvite = liveRequests.length
+  await act(async () => inviteRoot.render(React.createElement(Root, { inviteAuth:fakeInviteAuth })))
+  assert.ok(document.querySelector('.invite-page'), 'The direct /accept-invite path must render')
+  assert.equal(document.querySelector('.sidebar'), null, 'Invite acceptance is outside the Admin workspace')
+  assert.match(document.querySelector('.invite-page').textContent, /Validating your invitation/)
+  await act(async () => releaseSession({ data:{ session:inviteSession }, error:null }))
+  await flush()
+  assert.match(document.querySelector('.invite-page h1').textContent, /Set your password/)
+  assert.match(document.querySelector('.invite-email').textContent, /volunteer@example.com/)
+  assert.equal(window.location.hash, '', 'The callback token must leave the visible URL')
+  assert.equal(document.querySelector('.invite-page [name="role"]'), null)
+  assert.equal(document.querySelector('.invite-page [name="status"]'), null)
+  assert.equal(document.querySelector('.invite-page [name="registrationCode"]'), null)
+  await click(document.querySelector('.invite-submit'))
+  assert.match(document.querySelector('.invite-error').textContent, /Enter a password/)
+  await setInput(document.querySelector('#invite-password'), 'short')
+  await click(document.querySelector('.invite-submit'))
+  assert.match(document.querySelector('.invite-error').textContent, /8 and 128/)
+  await setInput(document.querySelector('#invite-password'), 'a-longer-password')
+  await setInput(document.querySelector('#invite-confirmation'), 'different-password')
+  await click(document.querySelector('.invite-submit'))
+  assert.match(document.querySelector('.invite-error').textContent, /do not match/)
+  await setInput(document.querySelector('#invite-confirmation'), 'a-longer-password')
+  await click(document.querySelector('.invite-submit'))
+  await flush()
+  assert.equal(document.querySelector('.invite-submit').disabled, true, 'Submitting must lock the form')
+  assert.deepEqual(inviteCalls.updates, [{ password:'a-longer-password' }])
+  assert.equal(liveRequests.length, requestsBeforeInvite, 'Password must never go to Express')
+  await act(async () => releaseUpdate({ data:{ user:inviteUser }, error:null }))
+  await flush()
+  assert.match(document.querySelector('.invite-page').textContent, /Your Volunteer account is ready/)
+  assert.deepEqual(inviteCalls.signOut, [{ scope:'local' }])
+  await act(async () => inviteRoot.unmount())
+
+  window.history.replaceState(null, '', '/accept-invite#type=invite&error_code=otp_expired')
+  const invalidRoot = createRoot(document.getElementById('root'))
+  await act(async () => invalidRoot.render(React.createElement(Root, { inviteAuth:fakeInviteAuth })))
+  assert.match(document.querySelector('.invite-page').textContent, /invalid or has expired/)
+  assert.doesNotMatch(document.querySelector('.invite-page').textContent, /otp_expired/)
+  assert.equal(document.querySelector('#invite-password'), null)
+  assert.equal(window.location.hash, '')
+  await act(async () => invalidRoot.unmount())
+
+  window.history.replaceState(null, '', '/accept-invite#type=invite&access_token=fake-token')
+  const failedRoot = createRoot(document.getElementById('root'))
+  const failedAuth = { ...fakeInviteAuth, getSession:async () => ({ data:{ session:null }, error:new Error('provider internal detail') }) }
+  await act(async () => failedRoot.render(React.createElement(Root, { inviteAuth:failedAuth })))
+  await flush()
+  assert.match(document.querySelector('.invite-page').textContent, /invalid or has expired/)
+  assert.doesNotMatch(document.querySelector('.invite-page').textContent, /provider internal detail/)
+  await act(async () => failedRoot.unmount())
+
+  const tokenHash = 'fake-hash-for-test'
+  window.history.replaceState(null, '', `/accept-invite?token_hash=${tokenHash}&type=invite`)
+  const hashRoot = createRoot(document.getElementById('root'))
+  const hashAuth = { ...fakeInviteAuth, getSession:async () => ({ data:{ session:inviteSession }, error:null }) }
+  await act(async () => hashRoot.render(React.createElement(Root, { inviteAuth:hashAuth })))
+  await flush()
+  assert.deepEqual(inviteCalls.verifyOtp, [{ token_hash:tokenHash, type:'invite' }])
+  assert.equal(window.location.search, '', 'The token hash must leave the visible URL')
+  assert.match(document.querySelector('.invite-page h1').textContent, /Set your password/)
+  await act(async () => hashRoot.unmount())
+  window.history.replaceState(null, '', '/')
+
   // Verify Requirement: Donor page has no misleading Pickup assignment action
   const { readFileSync } = await import('node:fs')
   const { resolve } = await import('node:path')
@@ -180,7 +401,7 @@ try {
   assert.equal(skilled.isEligible, true, 'Active skilled volunteer must be eligible')
   assert.ok(skilled.suitabilityScore > 80, 'Relevant skills should boost match score')
 
-  console.log('Smoke check passed: bilingual UI, assignment flow, donor page isolation, logistics recommendations, volunteer search/filter/add/edit and team create/add/change leader/remove.')
+  console.log('Smoke check passed: bilingual demo UI, live Volunteer create/edit/error flows, donor isolation, logistics recommendations and team flows.')
 } finally {
   await server.waitForRequestsIdle()
   await server.close()

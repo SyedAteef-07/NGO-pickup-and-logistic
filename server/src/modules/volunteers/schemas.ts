@@ -21,6 +21,30 @@ export const listVolunteersQuerySchema = pageQuerySchema.extend({
 }).strict();
 export type ListVolunteersQuery = z.infer<typeof listVolunteersQuerySchema>;
 
+const adminSkillsSchema = z.array(z.string().trim().min(1).max(100)).max(32)
+  .refine(skills => new Set(skills.map(skill => skill.toLowerCase())).size === skills.length, 'Skills must be unique.');
+const registrationCodeSchema = z.string().trim().min(1).max(64);
+const adminPhoneSchema = phoneE164Schema.nullable();
+
+export const createAdminVolunteerSchema = z.strictObject({
+  email: z.string().trim().toLowerCase().email().max(254),
+  name: z.string().trim().min(1).max(200),
+  phoneE164: adminPhoneSchema.optional().default(null),
+  registrationCode: registrationCodeSchema,
+  skills: adminSkillsSchema.default([]),
+  status: volunteerStatusSchema.default('ACTIVE'),
+});
+export type CreateAdminVolunteerInput = z.infer<typeof createAdminVolunteerSchema>;
+
+export const updateAdminVolunteerSchema = z.strictObject({
+  name: z.string().trim().min(1).max(200).optional(),
+  phoneE164: adminPhoneSchema.optional(),
+  registrationCode: registrationCodeSchema.optional(),
+  skills: adminSkillsSchema.optional(),
+  status: volunteerStatusSchema.optional(),
+}).refine(value => Object.keys(value).length > 0, 'Provide at least one editable volunteer field.');
+export type UpdateAdminVolunteerInput = z.infer<typeof updateAdminVolunteerSchema>;
+
 export const listTeamsQuerySchema = pageQuerySchema.extend({
   search: z.string().trim().max(100).optional(),
 }).strict();

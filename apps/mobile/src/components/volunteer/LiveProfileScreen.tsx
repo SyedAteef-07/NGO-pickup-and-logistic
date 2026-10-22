@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Field, Header, Icon, InfoRow, LanguageSwitcher, Screen, Sheet, T } from '../common/UI';
 import { C } from '../../constants/theme';
 import { useApp } from '../../context/AppContext';
 import { useVolunteerData } from '../../context/VolunteerDataContext';
+import { listOwnVolunteerTeams, type OwnVolunteerTeam } from '../../api/volunteers';
+import { LiveTeamMembership } from './LiveTeamMembership';
 
 export function LiveProfileScreen() {
   const app = useApp();
@@ -14,6 +16,23 @@ export function LiveProfileScreen() {
   const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [teams, setTeams] = useState<OwnVolunteerTeam[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
+  const refreshTeams = useCallback(async () => {
+    setTeams([]); setTeamsLoading(true); setTeamsError(null);
+    try { setTeams(await listOwnVolunteerTeams()); }
+    catch { setTeamsError('Could not load your team membership.'); }
+    finally { setTeamsLoading(false); }
+  }, []);
+  useEffect(() => {
+    let active = true;
+    void listOwnVolunteerTeams()
+      .then(items => { if (active) setTeams(items); })
+      .catch(() => { if (active) setTeamsError('Could not load your team membership.'); })
+      .finally(() => { if (active) setTeamsLoading(false); });
+    return () => { active = false; };
+  }, []);
   const beginEdit = () => {
     if (!profile) return;
     setName(profile.name); setPhone(profile.phoneE164 ?? ''); setFormError(null); setEditing(true);
@@ -35,6 +54,7 @@ export function LiveProfileScreen() {
       <T size={20} weight="700" color={C.ink} style={{ marginBottom: 11 }}>Personal information</T>
       <Card style={{ marginBottom: 18 }}><InfoRow icon="person" label="Name" value={profile.name} /><InfoRow icon="phone" label="Phone number" value={profile.phoneE164 ?? '—'} /><InfoRow icon="shield" label="Registration number" value={profile.registrationCode} /><Button title="Edit profile" icon="edit" variant="outline" onPress={beginEdit} style={{ marginTop: 10 }} /></Card>
     </>}
+    <LiveTeamMembership teams={teams} loading={teamsLoading} error={teamsError} onRefresh={() => void refreshTeams()} />
     <T size={20} weight="700" color={C.ink} style={{ marginTop: 18, marginBottom: 11 }}>Settings</T><Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><T weight="600">Language</T><LanguageSwitcher /></View></Card>
     <Button title="Log out" icon="logout" variant="outline" onPress={() => { app.logout(); router.replace('/'); }} />
     <Sheet visible={editing} onClose={() => setEditing(false)} title="Edit profile">

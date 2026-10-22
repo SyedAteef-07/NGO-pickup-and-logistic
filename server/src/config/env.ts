@@ -34,6 +34,19 @@ export function parseDatabaseUrl(rawUrl?: string): string | undefined {
   }
 }
 
+export function validateVolunteerInviteRedirectUrl(rawUrl: string | undefined, environment: string): void {
+  if (!rawUrl) return;
+  let redirect: URL;
+  try { redirect = new URL(rawUrl); }
+  catch { throw new Error('VOLUNTEER_INVITE_REDIRECT_URL must be a valid acceptance URL.'); }
+  const localHttp = environment !== 'production' && redirect.protocol === 'http:'
+    && ['localhost', '127.0.0.1', '[::1]'].includes(redirect.hostname);
+  if ((redirect.protocol !== 'https:' && !localHttp) || redirect.pathname !== '/accept-invite'
+    || redirect.search || redirect.hash || redirect.username || redirect.password) {
+    throw new Error('VOLUNTEER_INVITE_REDIRECT_URL must be the HTTPS /accept-invite URL (local HTTP is allowed in development).');
+  }
+}
+
 export const env = {
   port,
   nodeEnv,
@@ -43,6 +56,8 @@ export const env = {
   databaseSslCaPath: process.env.DATABASE_SSL_CA_PATH?.trim() || undefined,
   supabaseUrl: process.env.SUPABASE_URL || undefined,
   supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY || undefined,
+  supabaseSecretKey: process.env.SUPABASE_SECRET_KEY?.trim() || undefined,
+  volunteerInviteRedirectUrl: process.env.VOLUNTEER_INVITE_REDIRECT_URL?.trim() || undefined,
   locationRetentionDays: Number(process.env.LOCATION_RETENTION_DAYS ?? 30),
 } as const;
 
@@ -50,6 +65,7 @@ if (!Number.isInteger(env.locationRetentionDays) || env.locationRetentionDays < 
   throw new Error('LOCATION_RETENTION_DAYS must be an integer from 1 to 365.');
 }
 if (env.supabaseUrl && !/^https:\/\//.test(env.supabaseUrl)) throw new Error('SUPABASE_URL must use https.');
+validateVolunteerInviteRedirectUrl(env.volunteerInviteRedirectUrl, env.nodeEnv);
 if (env.nodeEnv === 'production' && (!env.databaseUrl || !env.supabaseUrl || !env.supabasePublishableKey || !process.env.CORS_ORIGIN)) {
   throw new Error('Production requires DATABASE_URL, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY and CORS_ORIGIN.');
 }

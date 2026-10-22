@@ -1,0 +1,10 @@
+.invite-page{min-height:100vh;display:grid;place-items:center;padding:32px 16px;background:#f7f8f5;color:#20332c}
+.invite-card{width:min(100%,440px);padding:32px;background:#fff;border:1px solid #e1e9e1;border-radius:16px;box-shadow:0 10px 30px #17382712}
+.invite-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:32px}.invite-brand{display:flex;align-items:center;gap:10px;color:#174e3c;font:800 18px Manrope,sans-serif}.invite-header .language-switch{display:flex;align-items:center;gap:4px;white-space:nowrap;color:#9aa99d}.invite-header .language-switch button{border:0;background:transparent;color:#617a69;padding:5px 2px;font-size:12px}.invite-header .language-switch button[aria-pressed=true]{color:#174e3c;font-weight:800}
+.invite-brand span,.invite-icon{display:grid;place-items:center;background:#e6f3e9;color:#174e3c;border-radius:12px}
+.invite-brand span{width:37px;height:37px}.invite-icon{width:48px;height:48px;margin-bottom:17px}.invite-icon.success{color:#21734f}
+.invite-card h1{font-size:clamp(24px,5vw,30px);line-height:1.25;color:#1c3629}.invite-card p{font-size:15px;line-height:1.55;color:#5e7265;margin-top:12px}
+.invite-email{padding:11px 13px;background:#f4f8f4;border-radius:9px;overflow-wrap:anywhere}.invite-email strong{color:#254d37}
+.invite-form{display:grid;gap:8px;margin-top:23px}.invite-form label{font-size:15px;font-weight:700;color:#294938}.invite-form input{width:100%;height:44px;border:1px solid #cbdace;border-radius:9px;padding:0 12px;background:#fff;color:#20332c;font-size:16px}.invite-form input:disabled{background:#f3f5f3}.invite-form label:not(:first-child){margin-top:10px}
+.invite-form .invite-hint,.invite-hint{font-size:13px;color:#697b6e;margin:0}.invite-form .invite-error{font-size:14px;color:#aa3c35;margin:4px 0 0}.invite-submit{margin-top:12px;min-height:44px;border:0;border-radius:9px;padding:10px 16px;background:#2876b9;color:#fff;font-size:15px;font-weight:700}.invite-submit:hover:not(:disabled){background:#1d669f}.invite-submit:disabled{opacity:.6}
+@media(max-width:480px){.invite-card{padding:24px}}

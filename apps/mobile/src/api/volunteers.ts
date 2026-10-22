@@ -10,6 +10,13 @@ export async function getOwnVolunteerProfile(): Promise<Volunteer> {
   return apiRequest<Volunteer>('volunteers/me', { headers: await authorization() });
 }
 
+export type OwnVolunteerTeam = { id: string; name: string; isLeader: boolean };
+
+export async function listOwnVolunteerTeams(): Promise<OwnVolunteerTeam[]> {
+  const page = await apiRequest<Page<OwnVolunteerTeam>>('volunteers/me/teams', { headers: await authorization() });
+  return page.items;
+}
+
 export async function updateOwnVolunteerProfile(input: { name: string; phoneE164?: string }): Promise<Volunteer> {
   return apiRequest<Volunteer>('volunteers/me', {
     method: 'PATCH', headers: await authorization(), body: input,

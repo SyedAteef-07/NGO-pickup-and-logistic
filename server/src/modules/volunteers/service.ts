@@ -1,11 +1,12 @@
 import { uuidSchema, type AppUser, type Availability, type CreateAvailabilityRequest, type Team, type Volunteer } from '@aaharaconnect/shared';
 import type { PoolClient } from 'pg';
 import { withTransaction } from '../../db/pool';
+import { inviteSupabaseUserByEmail, revokeNewSupabaseInvite } from '../../auth/supabase';
 import { HttpError } from '../../middleware/errorHandler';
 import * as volunteerRepository from './repository';
 import type { VolunteerProfileRow } from './repository';
 import type { AvailabilityRow } from './repository';
-import type { CreateTeamInput, ListTeamsQuery, ListVolunteersQuery, UpdateOwnProfileInput, UpdateTeamInput } from './schemas';
+import type { CreateAdminVolunteerInput, CreateTeamInput, ListTeamsQuery, ListVolunteersQuery, UpdateAdminVolunteerInput, UpdateOwnProfileInput, UpdateTeamInput } from './schemas';
 
 function requireVolunteer(actor: AppUser): void {
   if (actor.role !== 'VOLUNTEER') throw new HttpError(403, 'FORBIDDEN', 'Volunteer access is required.');
@@ -32,6 +33,16 @@ export async function getOwnProfile(actor: AppUser): Promise<Volunteer> {
   const profile = await volunteerRepository.findByAppUserId(actor.id);
   if (!profile) throw new HttpError(404, 'NOT_FOUND', 'Volunteer profile not found.');
   return toVolunteer(profile);
+}
+
+export type OwnTeam = { id: string; name: string; isLeader: boolean };
+
+export async function listOwnTeams(actor: AppUser): Promise<{ items: OwnTeam[]; nextCursor: null }> {
+  requireVolunteer(actor);
+  const profile = await volunteerRepository.findByAppUserId(actor.id);
+  if (!profile) throw new HttpError(404, 'NOT_FOUND', 'Volunteer profile not found.');
+  const rows = await volunteerRepository.listOwnTeamsByAppUserId(actor.id);
+  return { items: rows.map(row => ({ id: row.id, name: row.name, isLeader: row.is_leader })), nextCursor: null };
 }
 
 export async function updateOwnProfile(actor: AppUser, input: UpdateOwnProfileInput): Promise<Volunteer> {
@@ -158,6 +169,61 @@ export async function getAdminVolunteer(actor: AppUser, id: string): Promise<Vol
   const row = await volunteerRepository.findVolunteerById(id);
   if (!row) throw new HttpError(404, 'NOT_FOUND', 'Volunteer not found.');
   return toVolunteer(row);
+}
+
+function throwAdminVolunteerConflict(field: 'registrationCode' | 'phoneE164'): never {
+  throw new HttpError(409, 'RESOURCE_CONFLICT',
+    field === 'registrationCode' ? 'Registration code is already in use.' : 'Phone number is already in use.');
+}
+
+function handleAdminVolunteerWriteError(error: unknown): never {
+  if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+    throw new HttpError(409, 'RESOURCE_CONFLICT', 'Volunteer registration, phone or account conflicts with an existing record.');
+  }
+  throw error;
+}
+
+export async function createAdminVolunteer(actor: AppUser, input: CreateAdminVolunteerInput): Promise<Volunteer> {
+  requireAdmin(actor);
+  const conflict = await volunteerRepository.findAdminVolunteerConflict(input.registrationCode, input.phoneE164);
+  if (conflict) throwAdminVolunteerConflict(conflict);
+
+  const invited = await inviteSupabaseUserByEmail(input.email, input.name);
+  try {
+    const row = await withTransaction(client => volunteerRepository.insertInvitedVolunteer(invited.authUserId, input, client));
+    return toVolunteer(row);
+  } catch (error) {
+    // The external invitation cannot join the PostgreSQL transaction. The auth
+    // helper rechecks this request's nonce before deleting anything.
+    try {
+      if (!await revokeNewSupabaseInvite(invited)) {
+        console.error(JSON.stringify({ level: 'error', message: 'Volunteer invite compensation failed' }));
+      }
+    } catch {
+      console.error(JSON.stringify({ level: 'error', message: 'Volunteer invite compensation failed' }));
+    }
+    handleAdminVolunteerWriteError(error);
+  }
+}
+
+export async function updateAdminVolunteer(actor: AppUser, id: string, input: UpdateAdminVolunteerInput): Promise<Volunteer> {
+  requireAdmin(actor);
+  try {
+    const row = await withTransaction(async client => {
+      const current = await volunteerRepository.findVolunteerForAdminUpdate(id, client);
+      if (!current) throw new HttpError(404, 'NOT_FOUND', 'Volunteer not found.');
+      if (input.registrationCode !== undefined || input.phoneE164) {
+        const conflict = await volunteerRepository.findAdminVolunteerConflict(
+          input.registrationCode ?? current.registration_code,
+          input.phoneE164 === undefined ? current.phone_e164 : input.phoneE164,
+          id
+        );
+        if (conflict) throwAdminVolunteerConflict(conflict);
+      }
+      return volunteerRepository.updateAdminVolunteerRows(current, input, client);
+    });
+    return toVolunteer(row);
+  } catch (error) { handleAdminVolunteerWriteError(error); }
 }
 
 function toTeam(row: volunteerRepository.TeamRow): Team {

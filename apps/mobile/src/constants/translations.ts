@@ -1,4 +1,8 @@
 export const kn: Record<string, string> = {
+  'My Team': 'ನನ್ನ ತಂಡ', 'Loading teams...': 'ತಂಡಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗುತ್ತಿದೆ...',
+  'Could not load your team membership.': 'ನಿಮ್ಮ ತಂಡದ ಸದಸ್ಯತ್ವವನ್ನು ಲೋಡ್ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ.',
+  'You are not currently assigned to a team.': 'ನಿಮ್ಮನ್ನು ಪ್ರಸ್ತುತ ಯಾವುದೇ ತಂಡಕ್ಕೆ ಸೇರಿಸಲಾಗಿಲ್ಲ.',
+  'Refresh teams': 'ತಂಡಗಳನ್ನು ನವೀಕರಿಸಿ',
   'Food Rescue Network': 'ಆಹಾರ ರಕ್ಷಣಾ ಜಾಲ', 'Together, less food waste.': 'ಒಟ್ಟಾಗಿ ಆಹಾರ ವ್ಯರ್ಥ ಕಡಿಮೆ ಮಾಡೋಣ.',
   'Choose how to continue': 'ಮುಂದುವರಿಯಲು ನಿಮ್ಮ ಪಾತ್ರ ಆಯ್ಕೆಮಾಡಿ', 'Volunteer': 'ಸ್ವಯಂಸೇವಕ', 'Donor / Event Organizer': 'ದಾನಿ / ಕಾರ್ಯಕ್ರಮ ಆಯೋಜಕರು',
   'Manage pickups, availability and your impact.': 'ಆಹಾರ ಸಂಗ್ರಹ, ಲಭ್ಯತೆ ಮತ್ತು ನಿಮ್ಮ ಕೊಡುಗೆಯನ್ನು ನಿರ್ವಹಿಸಿ.',
