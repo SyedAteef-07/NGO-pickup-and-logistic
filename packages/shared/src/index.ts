@@ -4,3 +4,4 @@ export * from './contracts/volunteers';
 export * from './contracts/food';
 export * from './contracts/vehicles';
 export * from './contracts/pickups';
+export * from './contracts/vessels';

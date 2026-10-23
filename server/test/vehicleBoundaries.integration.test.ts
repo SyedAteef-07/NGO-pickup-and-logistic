@@ -49,6 +49,47 @@ describe.skipIf(!enabled)('Vehicle module boundaries', () => {
       expect(roster.items).toMatchObject([{ assignmentId: assignment.rows[0].id, driverId: driver.rows[0].id, volunteerIds: [volunteer.rows[0].id] }]);
       await client.query("UPDATE app.assignments SET status = 'DELIVERED' WHERE id = $1", [assignment.rows[0].id]);
       expect((await listVehicleAssignments(vehicle.rows[0].id, client)).items).toEqual([]);
+
+      // Test repository readiness evaluation against live DB
+      const { findVehicleById, updateVehicle, createMaintenanceRecord, getFleetSummary, deleteVehicle } = await import('../src/modules/vehicles/repository');
+      const vehAfterDelivered = await findVehicleById(vehicle.rows[0].id, client);
+      expect(vehAfterDelivered?.readiness.isReady).toBe(true);
+      expect(vehAfterDelivered?.readiness.dispatchStatus).toBe('READY');
+
+      // Test UNSAFE maintenance transition
+      await createMaintenanceRecord(
+        vehicle.rows[0].id,
+        {
+          servicedOn: '2026-10-23',
+          condition: 'UNSAFE',
+          summary: 'Critical brake failure',
+        },
+        user.rows[0].id,
+        client
+      );
+
+      const vehAfterUnsafe = await findVehicleById(vehicle.rows[0].id, client);
+      expect(vehAfterUnsafe?.status).toBe('MAINTENANCE');
+      expect(vehAfterUnsafe?.readiness.isReady).toBe(false);
+      expect(vehAfterUnsafe?.readiness.dispatchStatus).toBe('MAINTENANCE_RESTRICTED');
+      expect(vehAfterUnsafe?.readiness.reasons.some(r => r.code === 'MAINTENANCE_CONDITION_UNSAFE')).toBe(true);
+
+      const summary = await getFleetSummary(client);
+      expect(summary.total).toBeGreaterThanOrEqual(1);
+      expect(summary.maintenance).toBeGreaterThanOrEqual(1);
+
+      // Deleting a vehicle referenced by assignments/maintenance must fail with 409 RESOURCE_CONFLICT (preserving historical data)
+      await expect(deleteVehicle(vehicle.rows[0].id, client)).rejects.toMatchObject({
+        status: 409,
+        code: 'RESOURCE_CONFLICT',
+      });
+
+      // An unreferenced vehicle can be deleted cleanly
+      const tempVeh = await client.query(
+        "INSERT INTO app.vehicles (registration_number, kind, capacity_kg, status) VALUES ('KA-99-TEMP-0001', 'Van', 350, 'ACTIVE') RETURNING id"
+      );
+      const deleted = await deleteVehicle(tempVeh.rows[0].id, client);
+      expect(deleted).toBe(true);
     } finally {
       await client.query('ROLLBACK');
       client.release();

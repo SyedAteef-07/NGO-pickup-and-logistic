@@ -12,6 +12,7 @@ import Settings from './pages/Settings'
 import VehicleTracking from './pages/VehicleTracking'
 import Vehicles from './pages/Vehicles'
 import FoodDonor from './pages/FoodDonor'
+import Vessels from './pages/Vessels'
 import LivePickupsPanel from './components/assignments/LivePickupsPanel'
 import { useRenderedLanguage, type Language } from './lib/i18n'
 import type { Assignment, Page, Vehicle, VehicleMaintenanceRecord, Volunteer, VolunteerTeam } from './types'
@@ -27,7 +28,7 @@ export default function App() {
         : null
       const directHash = window.location.hash.replace(/^#\/?(workspace\/?)?/, '').split('?')[0]
       const p = searchP || hashQuery || directHash
-      if (p === 'food' || p === 'pickups' || p === 'volunteers' || p === 'teams' || p === 'assignments' || p === 'tracking' || p === 'vehicles' || p === 'settings') {
+      if (p === 'food' || p === 'pickups' || p === 'volunteers' || p === 'teams' || p === 'assignments' || p === 'tracking' || p === 'vehicles' || p === 'vessels' || p === 'settings') {
         return p as Page
       }
     }
@@ -46,8 +47,42 @@ export default function App() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>(initialVolunteers)
   const [teams, setTeams] = useState<VolunteerTeam[]>(initialTeams)
   const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments)
-  const [vehicles, setVehicles] = useState<Vehicle[]>(initialVehicles)
-  const [maintenanceRecords, setMaintenanceRecords] = useState<VehicleMaintenanceRecord[]>(initialMaintenanceRecords)
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('aaharaconnect_vehicles')
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed
+        } catch {}
+      }
+    }
+    return initialVehicles
+  })
+  const [maintenanceRecords, setMaintenanceRecords] = useState<VehicleMaintenanceRecord[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('aaharaconnect_maintenance_records')
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed
+        } catch {}
+      }
+    }
+    return initialMaintenanceRecords
+  })
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('aaharaconnect_vehicles', JSON.stringify(vehicles))
+    }
+  }, [vehicles])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('aaharaconnect_maintenance_records', JSON.stringify(maintenanceRecords))
+    }
+  }, [maintenanceRecords])
   const [assignmentOpen, setAssignmentOpen] = useState(false)
   const [initialVolunteerId, setInitialVolunteerId] = useState<string | undefined>()
   const [toast, setToast] = useState<{ message: string; kind: 'success' | 'error' } | null>(null)
@@ -64,11 +99,12 @@ export default function App() {
     {page === 'dashboard' && <Dashboard volunteers={volunteers} teams={teams} assignments={assignments} onCreateAssignment={() => openAssignment()} onViewAssignments={() => setPage('assignments')} onViewVolunteers={() => setPage('volunteers')} onViewPickups={() => setPage('pickups')}/>}
     {page === 'volunteers' && <Volunteers volunteers={volunteers} teams={teams} assignments={assignments} setVolunteers={setVolunteers} onAssignTeam={assignTeam} onCreateAssignment={openAssignment} notify={notify}/>}
     {page === 'teams' && <Teams volunteers={volunteers} teams={teams} setTeams={setTeams} onAssignTeam={assignTeam} notify={notify}/>}
-    {page === 'food' && <FoodDonor/>}
+    {page === 'food' && <FoodDonor vehicles={vehicles} setVehicles={setVehicles} notify={notify}/>}
     {page === 'assignments' && <><LivePickupsPanel/><Assignments assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/></>}
     {page === 'pickups' && <PickupsLogistics assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/>}
     {page === 'tracking' && <VehicleTracking />}
     {page === 'vehicles' && <Vehicles vehicles={vehicles} setVehicles={setVehicles} maintenanceRecords={maintenanceRecords} setMaintenanceRecords={setMaintenanceRecords} drivers={initialDrivers} assignments={assignments} events={events} notify={notify}/>}
+    {page === 'vessels' && <Vessels vehicles={vehicles} notify={notify} />}
     {page === 'settings' && <Settings notifications={showSuccessNotifications} onNotificationsChange={setShowSuccessNotifications} onAdminSignIn={() => setPage('dashboard')}/>}
     {assignmentOpen && <CreateAssignmentDialog volunteers={volunteers} teams={teams} assignments={assignments} initialVolunteerId={initialVolunteerId} onClose={() => setAssignmentOpen(false)} onCreate={createAssignment} notify={notify}/>}
     {toast && <Toast message={toast.message} kind={toast.kind} onClose={() => setToast(null)}/>}

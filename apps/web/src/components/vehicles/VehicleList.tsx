@@ -1,24 +1,28 @@
-import { AlertTriangle, Clock, Edit2, Eye, Plus, Search, Wrench, X } from 'lucide-react'
+import { AlertTriangle, Clock, Edit2, Eye, Plus, Search, Trash2, Wrench, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import type { Driver, Vehicle } from '../../types'
+import type { Driver, Vehicle, VehicleMaintenanceRecord } from '../../types'
 import { EmptyState, StatusBadge, formatDate } from '../common/UI'
 
 type Props = {
   vehicles: Vehicle[]
   drivers: Driver[]
+  maintenanceRecords?: VehicleMaintenanceRecord[]
   onAddVehicle: () => void
   onViewVehicle: (vehicle: Vehicle) => void
   onEditVehicle: (vehicle: Vehicle) => void
   onLogMaintenance: (vehicle: Vehicle) => void
+  onDeleteVehicle: (vehicle: Vehicle) => void
 }
 
 export default function VehicleList({
   vehicles,
   drivers,
+  maintenanceRecords,
   onAddVehicle,
   onViewVehicle,
   onEditVehicle,
   onLogMaintenance,
+  onDeleteVehicle,
 }: Props) {
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
@@ -31,28 +35,35 @@ export default function VehicleList({
   const filteredVehicles = useMemo(() => {
     return vehicles.filter(v => {
       const driver = drivers.find(d => d.driverId === v.driverId)
+      const driverDisplayName = v.driverName || driver?.name || ''
       if (query) {
-        const text = `${v.registrationNumber} ${v.vehicleId} ${v.type} ${driver?.name ?? ''}`.toLowerCase()
+        const text = `${v.registrationNumber} ${v.vehicleId} ${v.type} ${driverDisplayName}`.toLowerCase()
         if (!text.includes(query.toLowerCase())) return false
       }
       if (typeFilter && !v.type.toLowerCase().includes(typeFilter.toLowerCase())) return false
-      if (statusFilter && v.status !== statusFilter) return false
+      if (statusFilter) {
+        if (statusFilter === 'AVAILABLE' && (v.status !== 'AVAILABLE' && v.status !== 'ACTIVE')) return false
+        else if (statusFilter !== 'AVAILABLE' && v.status !== statusFilter) return false
+      }
       if (capacityFilter) {
         if (capacityFilter === 'small' && v.capacityKg > 250) return false
         if (capacityFilter === 'medium' && (v.capacityKg <= 250 || v.capacityKg > 500)) return false
         if (capacityFilter === 'large' && v.capacityKg <= 500) return false
       }
       if (maintFilter) {
-        if (!v.nextMaintenance) return false
-        if (maintFilter === 'overdue' && v.nextMaintenance >= today) return false
+        const nextDate =
+          v.nextMaintenance ||
+          maintenanceRecords?.find(m => m.vehicleId === v.vehicleId && m.nextServiceDueOn)?.nextServiceDueOn
+        if (!nextDate) return false
+        if (maintFilter === 'overdue' && nextDate >= today) return false
         if (maintFilter === 'due') {
-          const diffDays = Math.ceil((new Date(v.nextMaintenance).getTime() - new Date(today).getTime()) / (1000 * 3600 * 24))
+          const diffDays = Math.ceil((new Date(nextDate).getTime() - new Date(today).getTime()) / (1000 * 3600 * 24))
           if (diffDays < 0 || diffDays > 14) return false
         }
       }
       return true
     })
-  }, [vehicles, drivers, query, typeFilter, statusFilter, capacityFilter, maintFilter, today])
+  }, [vehicles, drivers, maintenanceRecords, query, typeFilter, statusFilter, capacityFilter, maintFilter, today])
 
   const hasFilters = query || typeFilter || statusFilter || capacityFilter || maintFilter
   const clearFilters = () => {
@@ -175,11 +186,13 @@ export default function VehicleList({
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filteredVehicles.map(v => {
                 const driver = drivers.find(d => d.driverId === v.driverId)
-                const isOverdue = v.nextMaintenance && v.nextMaintenance < today
-                const diffDays = v.nextMaintenance
-                  ? Math.ceil((new Date(v.nextMaintenance).getTime() - new Date(today).getTime()) / (1000 * 3600 * 24))
+                const nextMaintenanceDate =
+                  v.nextMaintenance ||
+                  maintenanceRecords?.find(m => m.vehicleId === v.vehicleId && m.nextServiceDueOn)?.nextServiceDueOn
+                const isOverdue = Boolean(nextMaintenanceDate && nextMaintenanceDate < today)
+                const diffDays = nextMaintenanceDate
+                  ? Math.ceil((new Date(nextMaintenanceDate).getTime() - new Date(today).getTime()) / (1000 * 3600 * 24))
                   : null
-                const isDueSoon = diffDays !== null && diffDays >= 0 && diffDays <= 14
 
                 return (
                   <tr key={v.vehicleId} className="hover:bg-slate-50/60 transition-colors">
@@ -196,29 +209,57 @@ export default function VehicleList({
                       {v.indicativeMaxVessels ?? '—'}
                     </td>
                     <td className="py-3 px-4">
-                      {driver ? (
+                      {v.driverName || driver ? (
                         <div>
-                          <span className="font-medium text-slate-800">{driver.name}</span>
-                          <span className="block text-[11px] text-slate-400">{driver.phone}</span>
+                          <span className="font-medium text-slate-800">{v.driverName || driver?.name}</span>
+                          <span className="block text-[11px] text-slate-400">{v.driverPhone || driver?.phone}</span>
                         </div>
                       ) : (
                         <span className="text-slate-400 italic">Unassigned</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      <StatusBadge status={v.status} />
+                      <div className="flex flex-col gap-1 items-start">
+                        <StatusBadge status={v.status} />
+                        {v.readiness && (
+                          <span
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                              v.readiness.isReady
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : v.readiness.dispatchStatus === 'DISPATCHED'
+                                ? 'bg-blue-50 text-blue-700'
+                                : v.readiness.dispatchStatus === 'RETIRED'
+                                ? 'bg-slate-100 text-slate-600'
+                                : 'bg-rose-50 text-rose-700'
+                            }`}
+                            title={v.readiness.reasons.map(r => r.message).join('; ') || 'Ready for dispatch'}
+                          >
+                            {v.readiness.dispatchStatus}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4">
-                      {v.nextMaintenance ? (
+                      {nextMaintenanceDate ? (
                         <div>
-                          <span className="text-slate-700">{formatDate(v.nextMaintenance)}</span>
+                          <span className="text-slate-700">{formatDate(nextMaintenanceDate)}</span>
                           {isOverdue && (
                             <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] bg-rose-50 text-rose-700 font-bold px-1.5 py-0.5 rounded">
                               <AlertTriangle size={10} /> Overdue
                             </span>
                           )}
-                          {isDueSoon && (
+                          {!isOverdue && diffDays === 0 && (
                             <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] bg-amber-50 text-amber-700 font-bold px-1.5 py-0.5 rounded">
+                              <Clock size={10} /> Today
+                            </span>
+                          )}
+                          {!isOverdue && diffDays !== null && diffDays > 0 && (
+                            <span
+                              className={`ml-1 inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                diffDays <= 7 ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
+                              }`}
+                              title={`${diffDays} days left until next scheduled service`}
+                            >
                               <Clock size={10} /> {diffDays}d
                             </span>
                           )}
@@ -252,6 +293,14 @@ export default function VehicleList({
                           onClick={() => onLogMaintenance(v)}
                         >
                           <Wrench size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button p-1 hover:text-rose-700 text-slate-400"
+                          title="Delete Vehicle"
+                          onClick={() => onDeleteVehicle(v)}
+                        >
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>

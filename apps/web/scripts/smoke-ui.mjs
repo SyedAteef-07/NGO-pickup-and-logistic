@@ -38,19 +38,21 @@ try {
   await act(async () => { adminLink.click(); await hashChanged })
   assert.equal(window.location.hash, '#/workspace')
   assert.match(document.body.textContent, /Volunteer Management/)
-  for (const label of ['Volunteers', 'Food & Donors', 'Pickup & Logistics', 'Vehicle Tracking', 'Vehicle Details']) {
+  for (const label of ['Volunteers', 'Food & Donors', 'Pickup & Logistics', 'Vehicle Tracking', 'Vehicle Details', 'Vessels']) {
     assert.ok([...document.querySelectorAll('.side-nav button')].some(item => item.textContent.trim() === label), `${label} module should be visible`)
   }
   await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Volunteers')))
   assert.match(document.querySelector('main h1').textContent, /Volunteers/)
   await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Food & Donors')))
-  assert.match(document.querySelector('main').textContent, /Admin food requests are not connected yet/)
+  assert.match(document.querySelector('main').textContent, /Live Food Requests from Donors|Food & Donors/)
   await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Pickup & Logistics')))
   assert.match(document.querySelector('main h1').textContent, /Pickup & Logistics/)
   await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Vehicle Tracking')))
   assert.match(document.querySelector('main').textContent, /This device location/)
   await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Vehicle Details')))
   assert.match(document.querySelector('main').textContent, /Fleet Registry/)
+  await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Vessels')))
+  assert.match(document.querySelector('main h1').textContent, /Vessels/)
   await click([...document.querySelectorAll('.side-nav button')].find(item => item.textContent.includes('Dashboard')))
 
   await click(button('ಕನ್ನಡ'))

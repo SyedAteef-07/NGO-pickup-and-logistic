@@ -6,6 +6,7 @@ import { foodRoutes } from '../modules/food/routes';
 import { pickupRoutes, vehicleAssignmentRoutes } from '../modules/pickups/routes';
 import { vehicleRoutes } from '../modules/vehicles/routes';
 import { pickupTrackingRoutes, vehicleTrackingRoutes } from '../modules/tracking/routes';
+import { vesselRoutes } from '../modules/vessels/routes';
 
 export const apiRouter = Router();
 apiRouter.use('/health', healthRouter);
@@ -21,3 +22,4 @@ apiRouter.use('/vehicles', vehicleAssignmentRoutes);
 apiRouter.use('/vehicles', vehicleTrackingRoutes);
 apiRouter.use('/vehicles', vehicleRoutes);
 apiRouter.use('/drivers', vehicleRoutes);
+apiRouter.use('/vessels', vesselRoutes);

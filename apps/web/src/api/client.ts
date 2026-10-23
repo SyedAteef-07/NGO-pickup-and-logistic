@@ -16,7 +16,13 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   let response: Response;
   try {
     response = await fetch(`${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`, {
-      ...options, headers, body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      ...options,
+      headers,
+      body: options.body === undefined
+        ? undefined
+        : typeof options.body === 'string'
+          ? options.body
+          : JSON.stringify(options.body),
     });
   } catch {
     throw new ApiClientError(0, 'NETWORK_ERROR', 'Could not reach the API.');

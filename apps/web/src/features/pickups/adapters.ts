@@ -35,6 +35,9 @@ export function map409ErrorMessage(error: unknown): string {
     if (msg.includes('maintenance') || msg.includes('unsafe') || msg.includes('licence') || msg.includes('expired')) {
       return 'Resource unavailable: The driver licence is expired or vehicle is currently in maintenance.'
     }
+    if (code === 'RESOURCE_CONFLICT' || msg.includes('unique') || msg.includes('already exists') || msg.includes('registration')) {
+      return 'A vehicle with this registration number already exists.'
+    }
     if (msg.includes('reservation') || msg.includes('availability') || msg.includes('conflict') || msg.includes('overlap')) {
       return 'Time conflict: One or more selected volunteers, drivers, or vehicles are already booked for this window.'
     }

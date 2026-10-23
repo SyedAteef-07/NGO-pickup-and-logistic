@@ -78,6 +78,11 @@ h1,h2,h3 { letter-spacing:-.025em; }
 .status-accepted,.status-in-progress,.status-assigned,.status-reserved { border-color:#c9dff7; }
 .status-pending { border-color:#f4d5a8; }
 .status-off-duty,.status-unavailable,.status-rejected,.status-cancelled,.status-maintenance,.status-on-trip { border-color:#f1d0c9; }
+.status-active,.status-ready { background:#e8f6ed; color:#2b9055; border-color:#bae3c8; }
+.status-retired { background:#f1f5f9; color:#64748b; border-color:#cbd5e1; }
+.status-dispatched { background:#eaf2fd; color:#377cb9; border-color:#c9dff7; }
+.status-maintenance-restricted { background:#fff0ec; color:#cd6a57; border-color:#f1d0c9; }
+
 
 /* Dashboard */
 .stat-grid { gap:18px; }

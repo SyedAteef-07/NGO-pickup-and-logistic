@@ -1,4 +1,4 @@
-import { Bell, Car, ChevronDown, ClipboardList, LayoutDashboard, Leaf, Menu, PackageCheck, PackageOpen, Settings, Truck, Users, UsersRound, X } from 'lucide-react'
+import { Bell, Boxes, Car, ChevronDown, ClipboardList, LayoutDashboard, Leaf, Menu, PackageCheck, PackageOpen, Settings, Truck, Users, UsersRound, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { Page } from '../../types'
 import { Avatar } from '../common/UI'
@@ -13,8 +13,9 @@ const nav: { id: Page; label: string; icon: typeof LayoutDashboard }[] = [
   { id:'pickups', label:'Pickup & Logistics', icon:PackageCheck },
   { id:'tracking', label:'Vehicle Tracking', icon:Car },
   { id:'vehicles', label:'Vehicle Details', icon:Truck },
+  { id:'vessels', label:'Vessels', icon:Boxes },
 ]
-const titles: Record<Page,string> = { dashboard:'Volunteer Management', volunteers:'Volunteers', teams:'Volunteer Teams', food:'Food & Donors', assignments:'Assignments', pickups:'Pickup & Logistics', tracking:'Vehicle Tracking', vehicles:'Vehicle Details & Fleet', settings:'Settings' }
+const titles: Record<Page,string> = { dashboard:'Volunteer Management', volunteers:'Volunteers', teams:'Volunteer Teams', food:'Food & Donors', assignments:'Assignments', pickups:'Pickup & Logistics', tracking:'Vehicle Tracking', vehicles:'Vehicle Details & Fleet', vessels:'Vessels & Food Containers', settings:'Settings' }
 
 export function Layout({ page, onPage, language, onLanguageChange, children }: { page: Page; onPage: (page: Page) => void; language: Language; onLanguageChange: (language: Language) => void; children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)

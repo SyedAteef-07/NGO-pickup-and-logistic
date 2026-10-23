@@ -32,7 +32,10 @@ export default function MaintenanceModal({
   const [vehicleId, setVehicleId] = useState(initialVehicleId ?? vehicles[0]?.vehicleId ?? '')
   const [servicedOn, setServicedOn] = useState(() => new Date().toISOString().slice(0, 10))
   const [serviceType, setServiceType] = useState('General Service')
-  const [condition, setCondition] = useState<'GOOD' | 'NEEDS_SERVICE' | 'UNSAFE'>('GOOD')
+  const [customServiceType, setCustomServiceType] = useState('')
+  const [conditionSelection, setConditionSelection] = useState<'GOOD' | 'NEEDS_SERVICE' | 'UNSAFE' | 'OTHER'>('GOOD')
+  const [customCondition, setCustomCondition] = useState('')
+  const [customConditionSafety, setCustomConditionSafety] = useState<'GOOD' | 'NEEDS_SERVICE' | 'UNSAFE'>('GOOD')
   const [summary, setSummary] = useState('')
   const [nextServiceDueOn, setNextServiceDueOn] = useState('')
 
@@ -42,6 +45,27 @@ export default function MaintenanceModal({
       notify('Please select a vehicle.', 'error')
       return
     }
+
+    const finalServiceType = serviceType === 'Other' ? customServiceType.trim() : serviceType
+    if (!finalServiceType) {
+      notify('Please enter a service type.', 'error')
+      return
+    }
+
+    let finalCondition: 'GOOD' | 'NEEDS_SERVICE' | 'UNSAFE' = 'GOOD'
+    let conditionNote = ''
+    if (conditionSelection === 'OTHER') {
+      const cleanCustom = customCondition.trim()
+      if (!cleanCustom) {
+        notify('Please enter the vehicle condition.', 'error')
+        return
+      }
+      finalCondition = customConditionSafety
+      conditionNote = `Condition: ${cleanCustom}. `
+    } else {
+      finalCondition = conditionSelection
+    }
+
     const cleanSummary = summary.trim()
     if (!cleanSummary) {
       notify('Please enter a service summary.', 'error')
@@ -56,23 +80,17 @@ export default function MaintenanceModal({
       recordId: `MNT${String(Date.now()).slice(-4)}`,
       vehicleId,
       servicedOn,
-      serviceType,
-      condition,
-      summary: cleanSummary,
+      serviceType: finalServiceType,
+      condition: finalCondition,
+      summary: conditionNote ? `${conditionNote}${cleanSummary}` : cleanSummary,
       nextServiceDueOn: nextServiceDueOn || undefined,
       recordedBy: 'Anjali Mehta',
     }
 
     // Critical V5 rule: UNSAFE condition sets vehicle status to MAINTENANCE immediately
-    const shouldUpdateStatus = condition === 'UNSAFE' ? ('MAINTENANCE' as const) : undefined
+    const shouldUpdateStatus = finalCondition === 'UNSAFE' ? ('MAINTENANCE' as const) : undefined
 
     onSave(record, shouldUpdateStatus)
-    notify(
-      condition === 'UNSAFE'
-        ? 'Maintenance logged. Vehicle status set to MAINTENANCE due to safety fault.'
-        : 'Maintenance record saved successfully.',
-      condition === 'UNSAFE' ? 'error' : 'success'
-    )
     onClose()
   }
 
@@ -112,6 +130,17 @@ export default function MaintenanceModal({
                 <option key={st} value={st}>{st}</option>
               ))}
             </select>
+            {serviceType === 'Other' && (
+              <input
+                id="mnt-custom-type"
+                type="text"
+                className="mt-2"
+                value={customServiceType}
+                onChange={e => setCustomServiceType(e.target.value)}
+                placeholder="e.g. Engine Overhaul, Oil Change"
+                required
+              />
+            )}
           </div>
         </div>
 
@@ -119,14 +148,64 @@ export default function MaintenanceModal({
           <label htmlFor="mnt-condition">Vehicle Condition After Service</label>
           <select
             id="mnt-condition"
-            value={condition}
-            onChange={e => setCondition(e.target.value as 'GOOD' | 'NEEDS_SERVICE' | 'UNSAFE')}
+            value={conditionSelection}
+            onChange={e => setConditionSelection(e.target.value as 'GOOD' | 'NEEDS_SERVICE' | 'UNSAFE' | 'OTHER')}
           >
             <option value="GOOD">Good · Safe for operational dispatch</option>
             <option value="NEEDS_SERVICE">Needs Attention · Service required soon</option>
             <option value="UNSAFE">Unsafe · Immediate fault, vehicle set to Maintenance</option>
+            <option value="OTHER">Other (Enter condition manually)</option>
           </select>
-          {condition === 'UNSAFE' && (
+
+          {conditionSelection === 'OTHER' && (
+            <div className="mt-2 space-y-2">
+              <input
+                id="mnt-custom-condition"
+                type="text"
+                value={customCondition}
+                onChange={e => setCustomCondition(e.target.value)}
+                placeholder="e.g. Minor body scratch, windshield repair"
+                required
+              />
+              <div className="field">
+                <label className="text-xs font-semibold text-slate-600">Dispatch Safety:</label>
+                <div className="flex gap-4 text-xs mt-1">
+                  <label className="inline-flex items-center gap-1 cursor-pointer text-slate-700">
+                    <input
+                      type="radio"
+                      name="mnt-condition-safety"
+                      value="GOOD"
+                      checked={customConditionSafety === 'GOOD'}
+                      onChange={() => setCustomConditionSafety('GOOD')}
+                    />
+                    Safe for dispatch
+                  </label>
+                  <label className="inline-flex items-center gap-1 cursor-pointer text-slate-700">
+                    <input
+                      type="radio"
+                      name="mnt-condition-safety"
+                      value="NEEDS_SERVICE"
+                      checked={customConditionSafety === 'NEEDS_SERVICE'}
+                      onChange={() => setCustomConditionSafety('NEEDS_SERVICE')}
+                    />
+                    Service soon
+                  </label>
+                  <label className="inline-flex items-center gap-1 cursor-pointer text-slate-700">
+                    <input
+                      type="radio"
+                      name="mnt-condition-safety"
+                      value="UNSAFE"
+                      checked={customConditionSafety === 'UNSAFE'}
+                      onChange={() => setCustomConditionSafety('UNSAFE')}
+                    />
+                    Unsafe (Restrict dispatch)
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(conditionSelection === 'UNSAFE' || (conditionSelection === 'OTHER' && customConditionSafety === 'UNSAFE')) && (
             <p className="field-note field-note-warning">
               Recording an UNSAFE condition will automatically take this vehicle out of service.
             </p>
@@ -156,11 +235,18 @@ export default function MaintenanceModal({
           />
         </div>
 
-        <div className="dialog-footer">
-          <button type="button" className="button button-secondary" onClick={onClose}>
+        <div className="dialog-footer pt-3 border-t border-emerald-100 flex justify-end gap-3">
+          <button
+            type="button"
+            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 hover:border-slate-400 active:bg-slate-100 transition-all shadow-xs cursor-pointer"
+            onClick={onClose}
+          >
             Cancel
           </button>
-          <button type="submit" className="button button-primary">
+          <button
+            type="submit"
+            className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-all shadow-md shadow-emerald-700/20 hover:shadow-lg hover:shadow-emerald-700/30 flex items-center gap-2 cursor-pointer border border-emerald-600"
+          >
             Save Record
           </button>
         </div>
