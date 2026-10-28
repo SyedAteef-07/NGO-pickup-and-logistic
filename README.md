@@ -40,6 +40,8 @@ npm run mobile    # Expo dev server; scan its QR code or use an emulator
 npm run server    # API at http://localhost:4000/api/v1
 ```
 
+The authoritative web workspace is `apps/web`. From the monorepo root, the equivalent direct command is `npm run dev --workspace apps/web`. The separate top-level `WEB/` directory is a legacy standalone prototype and is not part of this monorepo's npm workspaces.
+
 Health check: `GET http://localhost:4000/api/v1/health`; database readiness: `/api/v1/health/ready`.
 
 ## Check builds
@@ -65,7 +67,7 @@ apps/web/.env.example     → apps/web/.env
 apps/mobile/.env.example  → apps/mobile/.env
 ```
 
-The root [.env.example](.env.example) is a reference list. The server reads `PORT`, `NODE_ENV`, `CORS_ORIGIN`, `DATABASE_URL`, certificate-verified SSL settings, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `LOCATION_RETENTION_DAYS`. Web reads `VITE_API_BASE_URL`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; mobile reads the corresponding `EXPO_PUBLIC_*` variables. The API base URLs end at `/api/v1`; the Supabase URLs are project API origins, not dashboard pages. For Expo on a physical phone, replace `localhost` with your computer's reachable LAN address. Never put database credentials or secrets in `VITE_` or `EXPO_PUBLIC_` variables because they are exposed to the client.
+The root [.env.example](.env.example) is a reference list. The server reads `PORT`, `NODE_ENV`, `CORS_ORIGIN`, `DATABASE_URL`, certificate-verified SSL settings, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `LOCATION_RETENTION_DAYS`. Web reads `VITE_API_BASE_URL`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; mobile reads the corresponding `EXPO_PUBLIC_*` variables. The API base URLs end at `/api/v1`; the Supabase URLs are project API origins, not dashboard pages. Web on the laptop uses `VITE_API_BASE_URL=http://localhost:4000/api/v1`. A physical Android phone uses `EXPO_PUBLIC_API_BASE_URL=http://<LAPTOP_WIFI_IPV4>:4000/api/v1`; replace the placeholder with the laptop's current Wi-Fi IPv4, because phone `localhost` points back to the phone. Never put database credentials or secrets in `VITE_` or `EXPO_PUBLIC_` variables because they are exposed to the client.
 
 The web Settings page and the mobile login screen's separate shared-API action can authenticate with Supabase through centralized Auth adapters. The original mobile sign-in, explicit demo access, and business records stay local until the owning domain APIs and tests exist. See [deployment](docs/DEPLOYMENT.md) for database, migration and first-admin setup, and [team ownership](docs/TEAM_OWNERSHIP.md) for the five-module division.
 

@@ -21,6 +21,7 @@ import {
   type DonorPickupRequest,
 } from '../features/vehicles/donorTripService'
 import type { Vehicle } from '../types'
+import { isLiveAdmin } from '../features/pickups/adapters'
 
 interface Props {
   vehicles?: Vehicle[]
@@ -31,13 +32,15 @@ interface Props {
 export default function FoodDonor({ vehicles = [], setVehicles, notify }: Props) {
   const [requests, setRequests] = useState<DonorPickupRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [selectedVehicleMap, setSelectedVehicleMap] = useState<Record<string, string>>({})
 
   const loadRequests = async () => {
-    setLoading(true)
+    setLoading(true); setLoadError(false)
     try {
-      const data = await fetchAllDonorRequests()
-      const activeTrips = getAllActiveTrips()
+      const live = isLiveAdmin()
+      const data = await fetchAllDonorRequests(live)
+      const activeTrips = live ? [] : getAllActiveTrips()
 
       // Merge assignment status from active trips
       const enriched = data.map(req => {
@@ -54,6 +57,8 @@ export default function FoodDonor({ vehicles = [], setVehicles, notify }: Props)
       })
 
       setRequests(enriched)
+    } catch {
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -133,7 +138,7 @@ export default function FoodDonor({ vehicles = [], setVehicles, notify }: Props)
   }
 
   const awaitingCount = requests.filter(r => r.status === 'SUBMITTED').length
-  const assignedCount = requests.filter(r => r.status === 'ASSIGNED').length
+  const assignedCount = requests.filter(r => ['ASSIGNED', 'IN_TRANSIT'].includes(r.status)).length
 
   return (
     <>
@@ -141,7 +146,7 @@ export default function FoodDonor({ vehicles = [], setVehicles, notify }: Props)
         <div>
           <span className="eyebrow">FOOD & DONOR MANAGEMENT</span>
           <h1>Food & Donors</h1>
-          <p>Live donor requests, automatic temperature calculations, and fleet vehicle assignments.</p>
+          <p>{isLiveAdmin() ? 'Food requests from the shared API. Schedule vehicles through Pickup & Logistics.' : 'Demo donor requests and fleet planning.'}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -171,9 +176,9 @@ export default function FoodDonor({ vehicles = [], setVehicles, notify }: Props)
           <span className="text-[11px] text-slate-400 mt-0.5 block">Received via backend & donor app</span>
         </div>
         <div className="p-4 bg-white rounded-xl border border-amber-200/80 bg-amber-50/20 shadow-2xs">
-          <span className="text-xs font-semibold text-amber-700 block">Awaiting Vehicle Assignment</span>
+          <span className="text-xs font-semibold text-amber-700 block">Awaiting review / pickup planning</span>
           <strong className="text-2xl font-black text-amber-800 mt-1 block">{awaitingCount}</strong>
-          <span className="text-[11px] text-amber-600 mt-0.5 block">Ready for immediate pickup dispatch</span>
+          <span className="text-[11px] text-amber-600 mt-0.5 block">Review food safety before scheduling</span>
         </div>
         <div className="p-4 bg-white rounded-xl border border-emerald-200/80 bg-emerald-50/20 shadow-2xs">
           <span className="text-xs font-semibold text-emerald-700 block">Assigned / In Transit</span>
@@ -194,7 +199,7 @@ export default function FoodDonor({ vehicles = [], setVehicles, notify }: Props)
           </span>
         </div>
 
-        {requests.length === 0 ? (
+        {loadError ? <div className="p-8 text-center bg-white rounded-2xl border border-slate-200" role="alert">Could not load food requests from the API. Check your Admin session and retry.</div> : requests.length === 0 ? (
           <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
             <Package size={32} className="mx-auto text-slate-300 mb-2" />
             <h3 className="font-bold text-slate-700">No donor requests found</h3>
@@ -251,14 +256,14 @@ export default function FoodDonor({ vehicles = [], setVehicles, notify }: Props)
                         <span className="block text-[10px] font-bold uppercase text-slate-400">Cargo Weight</span>
                         <strong className="text-sm font-extrabold text-slate-800 flex items-center gap-1 mt-0.5">
                           <Scale size={13} className="text-emerald-600" />
-                          <span>{`${req.estimatedWeightKg} kg`}</span>
+                          <span>{req.weightProvided === false ? 'Not provided' : `${req.estimatedWeightKg} kg`}</span>
                         </strong>
                       </div>
                       <div className="rounded-xl border border-slate-150 bg-slate-50/70 p-2.5">
                         <span className="block text-[10px] font-bold uppercase text-slate-400">Indicative Vessels</span>
                         <strong className="text-sm font-extrabold text-slate-800 flex items-center gap-1 mt-0.5">
                           <Package size={13} className="text-emerald-600" />
-                          <span>{`${req.totalVessels} Vessels`}</span>
+                          <span>{req.weightProvided === false ? 'Pending' : `${req.totalVessels} Vessels`}</span>
                         </strong>
                       </div>
                     </div>
@@ -287,7 +292,8 @@ export default function FoodDonor({ vehicles = [], setVehicles, notify }: Props)
 
                   {/* Assignment Action Footer */}
                   <div className="pt-3 border-t border-slate-100">
-                    {req.status === 'ASSIGNED' ? (
+                    {isLiveAdmin() ? <p className="text-sm text-slate-600">Use Pickup & Logistics to plan and reserve a vehicle for this request.</p> :
+                    req.status === 'ASSIGNED' ? (
                       <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/80 flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2 text-emerald-800">
                           <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />

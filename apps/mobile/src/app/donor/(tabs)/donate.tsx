@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Button, Card, Field, Header, Icon, Screen, T } from '../../../components/common/UI';
 import { C } from '../../../constants/theme';
 import { useApp } from '../../../context/AppContext';
+import LiveDonate from '../../../components/donor/LiveDonate';
 export default function DonateFood() {
   const app = useApp();
   const [source, setSource] = useState(app.donor.organization); const [sourceType, setSourceType] = useState('Wedding');
@@ -20,6 +21,7 @@ export default function DonateFood() {
     setTimeout(() => { const id = app.submitRequest({ source: source.trim(), sourceType, address: address.trim(), date: date.trim(), time: time.trim(), foodType: foodType.trim(), meals: meals.trim(), readyTime: readyTime.trim(), contactName: contactName.trim(), phone: phone.trim(), notes: notes.trim(), event: source.trim() });
       setSubmitting(false); router.push({ pathname: '/donor/success', params: { id } }); }, 650);
   };
+  if (app.mode === 'live') return <LiveDonate />;
   return <Screen><Header title="New food pickup" subtitle="Tell us about the food and when it is ready." />
     <T size={20} weight="700" color={C.ink} style={{ marginBottom: 12 }}>Food source</T>
     <Card style={{ marginBottom: 18 }}><Field label="Source / event name" value={source} onChangeText={setSource} required /><T weight="600" color={C.ink} style={{ marginBottom: 9 }}>Source type</T>

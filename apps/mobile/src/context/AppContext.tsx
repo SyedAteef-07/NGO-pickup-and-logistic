@@ -66,7 +66,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     logout: () => { demoChosen.current = false; setMode(null); setRole(null); void signOut(); },
     assignments: mode === 'live' && role === 'volunteer' ? [] : assignments, updateAssignment,
     slots: mode === 'live' && role === 'volunteer' ? [] : slots, saveSlot, deleteSlot,
-    volunteer, saveVolunteer, donor, saveDonor, requests, submitRequest, cancelRequest, notify };
+    volunteer, saveVolunteer, donor, saveDonor, requests: mode === 'live' && role === 'donor' ? [] : requests, submitRequest, cancelRequest, notify };
   return <Context.Provider value={value}>
     {children}
     {!!toast && <View pointerEvents="none" style={{ position: 'absolute', bottom: 88, alignSelf: 'center', backgroundColor: C.ink, paddingHorizontal: 18, paddingVertical: 13, borderRadius: 14, maxWidth: '90%', ...shadow }}>

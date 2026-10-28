@@ -17,7 +17,7 @@ export function CreatePickupDialog({ onClose, onSuccess, notify }: Props) {
   const { foodRequests, loading: loadingRequests, isDemoFallback } = useFoodRequests()
 
   const [foodRequestId, setFoodRequestId] = useState(
-    foodRequests[0]?.id || 'f1000000-0000-4000-8000-000000000001'
+    foodRequests[0]?.id || ''
   )
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export function CreatePickupDialog({ onClose, onSuccess, notify }: Props) {
   }, [foodRequests, foodRequestId])
 
   const selectedRequest = useMemo(
-    () => foodRequests.find(r => r.id === foodRequestId) || foodRequests[0],
+    () => foodRequests.find(r => r.id === foodRequestId),
     [foodRequests, foodRequestId]
   )
 
@@ -57,10 +57,10 @@ export function CreatePickupDialog({ onClose, onSuccess, notify }: Props) {
   const [safetyReviews, setSafetyReviews] = useState<Record<string, string>>({})
   const [approvingSafety, setApprovingSafety] = useState(false)
 
-  const currentSafetyReview = safetyReviews[foodRequestId] || selectedRequest?.safetyReview || 'APPROVED'
+  const currentSafetyReview = safetyReviews[foodRequestId] || selectedRequest?.safetyReview || 'PENDING'
 
   const handleApproveSafety = async () => {
-    if (!foodRequestId) return
+    if (!foodRequestId || !selectedRequest) return
     setApprovingSafety(true)
     setError(null)
     try {
@@ -202,13 +202,13 @@ export function CreatePickupDialog({ onClose, onSuccess, notify }: Props) {
               type="button"
               className="button button-secondary"
               style={{ fontSize: '0.8rem', padding: '4px 10px', height: 'auto', whiteSpace: 'nowrap' }}
-              disabled={approvingSafety}
+              disabled={approvingSafety || !selectedRequest}
               onClick={handleApproveSafety}
             >
               {approvingSafety ? 'Approving…' : 'Approve Safety'}
             </button>
           </div>
-        ) : (
+        ) : currentSafetyReview === 'APPROVED' ? (
           <div
             style={{
               display: 'flex',
@@ -224,6 +224,10 @@ export function CreatePickupDialog({ onClose, onSuccess, notify }: Props) {
             }}
           >
             <span>{'✓ Food Safety Review: APPROVED'}</span>
+          </div>
+        ) : (
+          <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+            Food safety review was rejected. This request cannot be scheduled.
           </div>
         )}
 

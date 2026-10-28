@@ -181,7 +181,7 @@ try {
     if (method === 'PATCH' && path.includes('/volunteers/')) {
       if (failNextEdit) {
         failNextEdit = false
-        return new Response(JSON.stringify({ success:false, error:{ code:'RESOURCE_CONFLICT', message:'Registration code is already in use.' } }), { status:409, headers:{ 'Content-Type':'application/json' } })
+        return new Response(JSON.stringify({ success:false, error:{ code:'REGISTRATION_CODE_ALREADY_EXISTS', message:'Registration code is already in use.' } }), { status:409, headers:{ 'Content-Type':'application/json' } })
       }
       const input = JSON.parse(options.body)
       liveRoster = liveRoster.map(item => item.id === path.split('/').at(-1) ? { ...item, ...input } : item)
@@ -405,7 +405,10 @@ try {
 
   console.log('Smoke check passed: bilingual demo UI, live Volunteer create/edit/error flows, donor isolation, logistics recommendations and team flows.')
 } finally {
-  await server.waitForRequestsIdle()
-  await server.close()
   dom.window.close()
+  await server.close()
 }
+
+// Vite's middleware-mode watcher can retain Node handles after close() on Windows.
+// This standalone smoke process has completed every assertion at this point.
+process.exit(0)

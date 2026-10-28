@@ -1,3 +1,5 @@
 import React from 'react';
 import { ProfileScreen } from '../../../components/common/ProfileScreen';
-export default function DonorProfile() { return <ProfileScreen role="donor" />; }
+import LiveDonorProfile from '../../../components/donor/LiveDonorProfile';
+import { useApp } from '../../../context/AppContext';
+export default function DonorProfile() { return useApp().mode === 'live' ? <LiveDonorProfile /> : <ProfileScreen role="donor" />; }

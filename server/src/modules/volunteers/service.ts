@@ -1,7 +1,7 @@
 import { uuidSchema, type AppUser, type Availability, type CreateAvailabilityRequest, type Team, type Volunteer } from '@aaharaconnect/shared';
 import type { PoolClient } from 'pg';
 import { withTransaction } from '../../db/pool';
-import { inviteSupabaseUserByEmail, revokeNewSupabaseInvite } from '../../auth/supabase';
+import { inviteSupabaseUserByEmail } from '../../auth/supabase';
 import { HttpError } from '../../middleware/errorHandler';
 import * as volunteerRepository from './repository';
 import type { VolunteerProfileRow } from './repository';
@@ -172,7 +172,7 @@ export async function getAdminVolunteer(actor: AppUser, id: string): Promise<Vol
 }
 
 function throwAdminVolunteerConflict(field: 'registrationCode' | 'phoneE164'): never {
-  throw new HttpError(409, 'RESOURCE_CONFLICT',
+  throw new HttpError(409, field === 'registrationCode' ? 'REGISTRATION_CODE_ALREADY_EXISTS' : 'PHONE_ALREADY_EXISTS',
     field === 'registrationCode' ? 'Registration code is already in use.' : 'Phone number is already in use.');
 }
 
@@ -193,16 +193,10 @@ export async function createAdminVolunteer(actor: AppUser, input: CreateAdminVol
     const row = await withTransaction(client => volunteerRepository.insertInvitedVolunteer(invited.authUserId, input, client));
     return toVolunteer(row);
   } catch (error) {
-    // The external invitation cannot join the PostgreSQL transaction. The auth
-    // helper rechecks this request's nonce before deleting anything.
-    try {
-      if (!await revokeNewSupabaseInvite(invited)) {
-        console.error(JSON.stringify({ level: 'error', message: 'Volunteer invite compensation failed' }));
-      }
-    } catch {
-      console.error(JSON.stringify({ level: 'error', message: 'Volunteer invite compensation failed' }));
-    }
-    handleAdminVolunteerWriteError(error);
+    // An external Auth invitation cannot join the PostgreSQL transaction.
+    // Never delete an Auth identity here; report a repairable partial failure.
+    console.error(JSON.stringify({ level: 'error', subsystem: 'VolunteerProvisioning', code: 'INVITE_RECOVERY_REQUIRED' }));
+    throw new HttpError(503, 'INVITE_RECOVERY_REQUIRED', 'Volunteer provisioning needs administrator review before retrying.');
   }
 }
 

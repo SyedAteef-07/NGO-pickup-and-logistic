@@ -27,11 +27,12 @@ export interface DonorPickupRequest {
   readyAt: string
   pickupDeadline: string
   estimatedWeightKg: number
+  weightProvided?: boolean
   totalVessels: number
   foods: FoodItemDetail[]
   handlingRequirements: string
   equipment: EquipmentRequirement
-  status: 'SUBMITTED' | 'ASSIGNED' | 'IN_TRANSIT' | 'DELIVERED' | 'COMPLETED'
+  status: 'SUBMITTED' | 'ASSIGNED' | 'IN_TRANSIT' | 'DELIVERED' | 'COMPLETED' | 'CANCELLED'
   assignedVehicleId?: string
   assignedVehicleReg?: string
 }
@@ -237,7 +238,7 @@ const SEEDED_DONOR_REQUESTS: DonorPickupRequest[] = [
  * Fetch all available donor requests from the backend API,
  * merging with any donor requests submitted by the teammate's donor app.
  */
-export async function fetchAllDonorRequests(): Promise<DonorPickupRequest[]> {
+export async function fetchAllDonorRequests(liveOnly = false): Promise<DonorPickupRequest[]> {
   const result: DonorPickupRequest[] = []
   const seenIds = new Set<string>()
 
@@ -256,7 +257,13 @@ export async function fetchAllDonorRequests(): Promise<DonorPickupRequest[]> {
         }))
 
         const eq = calculateEquipmentRequirements(foods, item.handlingRequirements || '')
-        const totalVessels = Math.max(1, Math.ceil((Number(item.estimatedWeightKg) || 20) / 15))
+        const weightProvided = item.estimatedWeightKg != null && Number(item.estimatedWeightKg) > 0
+        const totalVessels = weightProvided ? Math.max(1, Math.ceil(Number(item.estimatedWeightKg) / 15)) : 0
+        const pickupStatus = item.pickup?.status
+        const status: DonorPickupRequest['status'] = item.status === 'CANCELLED' ? 'CANCELLED'
+          : pickupStatus === 'DELIVERED' ? 'DELIVERED'
+          : ['EN_ROUTE', 'ARRIVED_AT_DONOR', 'FOOD_COLLECTED'].includes(pickupStatus) ? 'IN_TRANSIT'
+          : pickupStatus === 'ASSIGNED' ? 'ASSIGNED' : 'SUBMITTED'
 
         result.push({
           id: item.id,
@@ -266,19 +273,23 @@ export async function fetchAllDonorRequests(): Promise<DonorPickupRequest[]> {
           contactPhone: item.contactPhoneE164,
           readyAt: item.readyAt,
           pickupDeadline: item.pickupDeadline,
-          estimatedWeightKg: Number(item.estimatedWeightKg) || 20,
+          estimatedWeightKg: weightProvided ? Number(item.estimatedWeightKg) : 0,
+          weightProvided,
           totalVessels,
           foods,
           handlingRequirements: item.handlingRequirements || '',
           equipment: eq,
-          status: item.status || 'SUBMITTED',
+          status,
         })
         seenIds.add(item.id)
       }
     }
-  } catch {
-    // Backend API offline or unauthenticated fallback
+  } catch (error) {
+    if (liveOnly) throw error
+    // Demo mode may use local donor records when the API is unavailable.
   }
+
+  if (liveOnly) return result
 
   // 2. Read from teammate's donor portal storage (aa:donations)
   if (typeof window !== 'undefined') {

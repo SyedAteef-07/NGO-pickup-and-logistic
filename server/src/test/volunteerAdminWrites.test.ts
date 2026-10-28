@@ -94,7 +94,7 @@ describe('ADMIN volunteer creation', () => {
     for (let index = 0; index < 2; index++) {
       const result = await request(app).post('/api/v1/volunteers').set(auth).send(createBody)
       expect(result.status).toBe(409)
-      expect(result.body.error.code).toBe('RESOURCE_CONFLICT')
+      expect(result.body.error.code).toBe(index === 0 ? 'REGISTRATION_CODE_ALREADY_EXISTS' : 'PHONE_ALREADY_EXISTS')
     }
     expect(invite).not.toHaveBeenCalled()
   })
@@ -110,21 +110,21 @@ describe('ADMIN volunteer creation', () => {
     }
   })
 
-  it('compensates a newly invited user after a database failure and preserves the original error', async () => {
+  it('reports recovery required after database failure without deleting the invitation', async () => {
     repo.insertInvitedVolunteer.mockRejectedValueOnce(new Error('database failure'))
     const result = await request(app).post('/api/v1/volunteers').set(auth).send(createBody)
-    expect(result.status).toBe(500)
-    expect(revoke).toHaveBeenCalledWith({ authUserId: 'a0458efe-a4be-43da-a4ed-c290ac3b48cd', inviteNonce: 'nonce' })
+    expect(result.status).toBe(503)
+    expect(result.body.error.code).toBe('INVITE_RECOVERY_REQUIRED')
+    expect(revoke).not.toHaveBeenCalled()
   })
 
-  it('preserves the database conflict even if compensation itself fails', async () => {
+  it('reports recovery required for a database conflict without Auth cleanup', async () => {
     repo.insertInvitedVolunteer.mockRejectedValueOnce({ code: '23505' })
-    revoke.mockRejectedValueOnce(new Error('cleanup failed'))
     const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       const result = await request(app).post('/api/v1/volunteers').set(auth).send(createBody)
-      expect(result.status).toBe(409)
-      expect(result.body.error.code).toBe('RESOURCE_CONFLICT')
+      expect(result.status).toBe(503)
+      expect(result.body.error.code).toBe('INVITE_RECOVERY_REQUIRED')
       expect(diagnostic).toHaveBeenCalled()
     } finally { diagnostic.mockRestore() }
   })

@@ -19,6 +19,23 @@ type VolunteerForm = {
 const emptyForm: VolunteerForm = { email: '', name: '', phone: '', registrationCode: '', skills: '', status: 'ACTIVE' }
 const phonePattern = /^\+[1-9][0-9]{7,14}$/
 
+function volunteerWriteError(cause: unknown): string {
+  if (!(cause instanceof ApiClientError)) return 'Could not save volunteer. Try again.'
+  const messages: Record<string, string> = {
+    PHONE_ALREADY_EXISTS: 'A volunteer with this phone number already exists.',
+    REGISTRATION_CODE_ALREADY_EXISTS: 'This registration code is already in use.',
+    VOLUNTEER_ALREADY_EXISTS: 'A volunteer account already exists for this email.',
+    INVITE_RATE_LIMITED: 'Invitation email limit reached. Please wait before sending another invitation.',
+    INVITE_EMAIL_NOT_AUTHORIZED: 'This email cannot receive invitations with the current Supabase email settings. Ask an administrator to configure SMTP.',
+    INVITE_SERVICE_UNAVAILABLE: 'The invitation service is temporarily unavailable. Try again shortly.',
+    INVITE_CONFIGURATION_ERROR: 'Invitation configuration needs administrator attention.',
+    INVITE_RECOVERY_REQUIRED: 'Invitation may have been sent, but the profile was not saved. Ask an administrator to review before retrying.',
+    DATABASE_UNAVAILABLE: 'The database is temporarily unavailable.',
+    NETWORK_ERROR: 'Could not reach the API. Check your connection and try again.',
+  }
+  return messages[cause.code] ?? 'Could not save volunteer. Try again.'
+}
+
 function parseForm(form: VolunteerForm, isCreate: boolean):
   | { value: CreateAdminVolunteerInput | UpdateAdminVolunteerInput; error: null }
   | { value: null; error: string } {
@@ -111,7 +128,7 @@ export default function LiveVolunteers({ token }: { token: string }) {
       setFormMode(null); setEditingId(null); setForm(emptyForm)
       void load()
     } catch (cause) {
-      setFormError(cause instanceof ApiClientError || cause instanceof Error ? cause.message : 'Could not save volunteer. Try again.')
+      setFormError(volunteerWriteError(cause))
     } finally {
       submitting.current = false; setSaving(false)
     }
