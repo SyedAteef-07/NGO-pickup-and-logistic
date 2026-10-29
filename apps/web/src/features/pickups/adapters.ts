@@ -8,7 +8,8 @@ export { getAuthHeaders }
  * decide whether coordinator screens read local fixtures or the API.
  */
 export function isLiveAdmin(): boolean {
-  return import.meta.env.VITE_DEMO_MODE !== 'true'
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem('aaharaconnect-admin-session') === '1'
 }
 
 /**
