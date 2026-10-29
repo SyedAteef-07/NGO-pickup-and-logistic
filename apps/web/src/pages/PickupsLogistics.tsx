@@ -8,6 +8,7 @@ import { PickupDrawer } from '../features/pickups/PickupDrawer'
 import type { LiveAssignment, Pickup } from '../features/pickups/types'
 import type { Assignment, Volunteer, VolunteerTeam } from '../types'
 import Assignments from './Assignments'
+import { isLiveAdmin } from '../features/pickups/adapters'
 
 interface Props {
   assignments: Assignment[]
@@ -125,7 +126,7 @@ export default function PickupsLogistics({
       </div>
 
       {activeTab === 'Assignments' ? (
-        <Assignments
+        isLiveAdmin() ? <section className="panel" style={{ marginTop: '1.25rem', padding: '1.5rem' }}><h2>Live assignments</h2><p>Open a pickup in the Pickups tab to inspect its current assignment and update permitted statuses.</p><button type="button" className="button button-primary" onClick={() => setActiveTab('Pickups')}>View pickups</button></section> : <Assignments
           assignments={assignments}
           setAssignments={setAssignments}
           volunteers={volunteers}

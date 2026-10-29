@@ -2,6 +2,34 @@ import { useEffect, useState, type FormEvent } from 'react'
 import type { AppUser } from '@aaharaconnect/shared'
 import { Bell, Building2, Check, Info, Leaf, ShieldCheck } from 'lucide-react'
 import { isLiveAuthConfigured, restoreAdminSession, signInAsAdmin, signOutAdmin } from '../api/auth'
+import { ApiClientError } from '../api/client'
+
+function adminSignInError(cause: unknown): string {
+  const generic = 'Sign in failed or administrator access is unavailable.'
+  if (!import.meta.env.DEV) return generic
+
+  if (cause instanceof ApiClientError) {
+    if (cause.code === 'NETWORK_ERROR') return 'API_UNREACHABLE: Check the Express server and VITE_API_BASE_URL.'
+    if (cause.code === 'MISSING_API_URL') return 'API_CONFIGURATION: Set VITE_API_BASE_URL in apps/web/.env.'
+    if (cause.code === 'DATABASE_UNAVAILABLE') return 'DATABASE_UNAVAILABLE: The API cannot currently access PostgreSQL.'
+    if (cause.code === 'SERVICE_UNAVAILABLE') return 'BACKEND_UNAVAILABLE: The API or an authentication dependency is unavailable.'
+    if (cause.status === 403 || cause.code === 'FORBIDDEN') return 'ADMIN_ACCESS_DENIED: This account does not have the server-owned ADMIN role.'
+    if (cause.status === 401 || cause.code === 'UNAUTHENTICATED') return 'API_AUTH_REJECTED: Supabase sign-in succeeded, but the API rejected the session.'
+    if (cause.status >= 500) return `BACKEND_ERROR: The API returned HTTP ${cause.status}. Check the server request log.`
+    return `API_ERROR: ${cause.code} (HTTP ${cause.status}).`
+  }
+
+  if (cause instanceof Error && cause.name.startsWith('Auth')) {
+    const code = 'code' in cause && typeof cause.code === 'string' ? cause.code : ''
+    return code === 'invalid_credentials'
+      ? 'AUTH_INVALID: Supabase rejected the email or password.'
+      : 'SUPABASE_AUTH_FAILED: Supabase could not complete password sign-in.'
+  }
+  if (cause instanceof Error && cause.message === 'Administrator access is required.') {
+    return 'ADMIN_ACCESS_DENIED: This account does not have the server-owned ADMIN role.'
+  }
+  return 'SIGN_IN_FAILED: Check Supabase Auth configuration and the API response.'
+}
 
 function CoordinatorAuth({ onAdminSignIn }: { onAdminSignIn: () => void }) {
   const sessionMarker = 'aaharaconnect-admin-session'
@@ -36,8 +64,8 @@ function CoordinatorAuth({ onAdminSignIn }: { onAdminSignIn: () => void }) {
       window.localStorage.setItem(sessionMarker, '1')
       setPassword('')
       onAdminSignIn()
-    } catch {
-      setMessage('Sign in failed or administrator access is unavailable.')
+    } catch (cause) {
+      setMessage(adminSignInError(cause))
     } finally { setBusy(false) }
   }
 

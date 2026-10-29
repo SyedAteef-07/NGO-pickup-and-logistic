@@ -12,7 +12,7 @@ const { createClient, invite, getUserById, deleteUser, testEnv } = vi.hoisted(()
 vi.mock('@supabase/supabase-js', () => ({ createClient }))
 vi.mock('../config/env', () => ({ env: testEnv }))
 
-import { inviteSupabaseUserByEmail, revokeNewSupabaseInvite } from '../auth/supabase'
+import { inviteSupabaseUserByEmail } from '../auth/supabase'
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -20,7 +20,7 @@ beforeEach(() => {
   testEnv.volunteerInviteRedirectUrl = 'https://example.org/accept-invite'
   createClient.mockReturnValue({ auth: { admin: { inviteUserByEmail: invite, getUserById, deleteUser } } })
   invite.mockImplementation(async (_email: string, options: { data: Record<string, unknown> }) => ({
-    data: { user: { id: 'a0458efe-a4be-43da-a4ed-c290ac3b48cd', user_metadata: options.data } },
+    data: { user: { id: 'a0458efe-a4be-43da-a4ed-c290ac3b48cd', created_at: new Date().toISOString(), user_metadata: options.data } },
     error: null,
   }))
   getUserById.mockResolvedValue({ data: { user: null }, error: null })
@@ -52,7 +52,7 @@ describe('server-only Supabase volunteer invitations', () => {
   it('fails only the invitation operation when the secret is absent', async () => {
     testEnv.supabaseSecretKey = undefined as unknown as string
     await expect(inviteSupabaseUserByEmail('new@example.com', 'New')).rejects.toMatchObject({
-      status: 503, code: 'SERVICE_UNAVAILABLE',
+      status: 503, code: 'INVITE_CONFIGURATION_ERROR',
     })
     expect(invite).not.toHaveBeenCalled()
   })
@@ -60,7 +60,7 @@ describe('server-only Supabase volunteer invitations', () => {
   it('never treats a successful re-invite of an existing unconfirmed user as a new account', async () => {
     invite.mockResolvedValueOnce({ data: { user: { id: 'existing', user_metadata: {} } }, error: null })
     await expect(inviteSupabaseUserByEmail('old@example.com', 'Old')).rejects.toMatchObject({
-      status: 409, code: 'RESOURCE_CONFLICT',
+      status: 409, code: 'VOLUNTEER_ALREADY_EXISTS',
     })
   })
 
@@ -68,19 +68,20 @@ describe('server-only Supabase volunteer invitations', () => {
     invite.mockResolvedValueOnce({ data: { user: null }, error: { code: 'email_exists', message: 'existing', status: 422 } })
       .mockResolvedValueOnce({ data: { user: null }, error: { code: 'other', message: 'provider internals', status: 500 } })
       .mockRejectedValueOnce(new Error('network internals'))
-    await expect(inviteSupabaseUserByEmail('old@example.com', 'Old')).rejects.toMatchObject({ status: 409, code: 'RESOURCE_CONFLICT' })
-    await expect(inviteSupabaseUserByEmail('new@example.com', 'New')).rejects.toMatchObject({ status: 503, code: 'SERVICE_UNAVAILABLE' })
-    await expect(inviteSupabaseUserByEmail('new@example.com', 'New')).rejects.toMatchObject({ status: 503, code: 'SERVICE_UNAVAILABLE' })
+    await expect(inviteSupabaseUserByEmail('old@example.com', 'Old')).rejects.toMatchObject({ status: 409, code: 'VOLUNTEER_ALREADY_EXISTS' })
+    await expect(inviteSupabaseUserByEmail('new@example.com', 'New')).rejects.toMatchObject({ status: 503, code: 'INVITE_SERVICE_UNAVAILABLE' })
+    await expect(inviteSupabaseUserByEmail('new@example.com', 'New')).rejects.toMatchObject({ status: 503, code: 'INVITE_SERVICE_UNAVAILABLE' })
   })
 
-  it('deletes only when the auth account still carries this request nonce', async () => {
-    const invited = await inviteSupabaseUserByEmail('new@example.com', 'New')
-    getUserById.mockResolvedValueOnce({ data: { user: { user_metadata: { aaharaconnectInviteNonce: invited.inviteNonce } } }, error: null })
-    expect(await revokeNewSupabaseInvite(invited)).toBe(true)
-    expect(deleteUser).toHaveBeenCalledWith(invited.authUserId)
+  it('classifies provider rate limits and never deletes an Auth user', async () => {
+    invite.mockResolvedValueOnce({ data: { user: null }, error: { status: 429, code: 'over_email_send_rate_limit', message: 'rate limit' } })
+    await expect(inviteSupabaseUserByEmail('new@example.com', 'New')).rejects.toMatchObject({ status: 429, code: 'INVITE_RATE_LIMITED' })
+    expect(deleteUser).not.toHaveBeenCalled()
+  })
 
-    getUserById.mockResolvedValueOnce({ data: { user: { user_metadata: { aaharaconnectInviteNonce: 'different' } } }, error: null })
-    expect(await revokeNewSupabaseInvite(invited)).toBe(false)
-    expect(deleteUser).toHaveBeenCalledTimes(1)
+  it('distinguishes default email sender recipient restrictions', async () => {
+    invite.mockResolvedValueOnce({ data: { user: null }, error: { status: 422, code: 'email_address_not_authorized', message: 'provider details' } })
+    await expect(inviteSupabaseUserByEmail('new@example.com', 'New')).rejects.toMatchObject({ status: 422, code: 'INVITE_EMAIL_NOT_AUTHORIZED' })
+    expect(deleteUser).not.toHaveBeenCalled()
   })
 })

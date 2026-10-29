@@ -30,11 +30,14 @@ export function getPool(): Pool {
     });
 
     pool.on('error', (error) => {
+      const candidate = (error as Error & { code?: unknown }).code;
+      const code = typeof candidate === 'string' && /^[A-Z0-9_-]{1,40}$/i.test(candidate)
+        ? candidate : undefined;
       console.error(JSON.stringify({
         level: 'error',
         kind: 'PoolIdleError',
         message: 'Unexpected error on idle database client',
-        reason: error instanceof Error ? error.message : 'unknown',
+        code,
       }));
     });
   }

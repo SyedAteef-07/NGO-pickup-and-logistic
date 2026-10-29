@@ -14,6 +14,7 @@ import Vehicles from './pages/Vehicles'
 import FoodDonor from './pages/FoodDonor'
 import Vessels from './pages/Vessels'
 import LivePickupsPanel from './components/assignments/LivePickupsPanel'
+import { isLiveAdmin } from './features/pickups/adapters'
 import { useRenderedLanguage, type Language } from './lib/i18n'
 import type { Assignment, Page, Vehicle, VehicleMaintenanceRecord, Volunteer, VolunteerTeam } from './types'
 
@@ -100,7 +101,9 @@ export default function App() {
     {page === 'volunteers' && <Volunteers volunteers={volunteers} teams={teams} assignments={assignments} setVolunteers={setVolunteers} onAssignTeam={assignTeam} onCreateAssignment={openAssignment} notify={notify}/>}
     {page === 'teams' && <Teams volunteers={volunteers} teams={teams} setTeams={setTeams} onAssignTeam={assignTeam} notify={notify}/>}
     {page === 'food' && <FoodDonor vehicles={vehicles} setVehicles={setVehicles} notify={notify}/>}
-    {page === 'assignments' && <><LivePickupsPanel/><Assignments assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/></>}
+    {page === 'assignments' && (isLiveAdmin()
+      ? <><LivePickupsPanel/><section className="panel" style={{ marginTop: '1.25rem', padding: '1.5rem' }}><h2>Manage live assignments</h2><p>Create and update assignments through the shared Pickup & Logistics workflow.</p><button className="button button-primary" onClick={() => setPage('pickups')}>Open Pickup & Logistics</button></section></>
+      : <Assignments assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/>) }
     {page === 'pickups' && <PickupsLogistics assignments={assignments} setAssignments={setAssignments} volunteers={volunteers} teams={teams} onCreateAssignment={() => openAssignment()} notify={notify}/>}
     {page === 'tracking' && <VehicleTracking />}
     {page === 'vehicles' && <Vehicles vehicles={vehicles} setVehicles={setVehicles} maintenanceRecords={maintenanceRecords} setMaintenanceRecords={setMaintenanceRecords} drivers={initialDrivers} assignments={assignments} events={events} notify={notify}/>}

@@ -35,8 +35,17 @@ describe('API foundation', () => {
     query.mockRejectedValueOnce(new Error('Connection lost'));
     const result = await request(app).get('/api/v1/health/ready');
     expect(result.status).toBe(503);
-    expect(result.body.error.code).toBe('SERVICE_UNAVAILABLE');
-    expect(result.body.error.message).toBe('Database is not ready.');
+    expect(result.body.error.code).toBe('DATABASE_UNAVAILABLE');
+    expect(result.body.error.message).toBe('Database is temporarily unavailable.');
+  });
+
+  it('classifies known PostgreSQL connection failures without exposing driver details', async () => {
+    const failure = Object.assign(new Error('sensitive connection detail'), { code: 'ENOTFOUND' });
+    findUser.mockRejectedValueOnce(failure);
+    const result = await request(app).get('/api/v1/me').set('Authorization', 'Bearer signed-token');
+    expect(result.status).toBe(503);
+    expect(result.body.error.code).toBe('DATABASE_UNAVAILABLE');
+    expect(JSON.stringify(result.body)).not.toContain('sensitive connection detail');
   });
 
   it('rejects missing bearer tokens', async () => {

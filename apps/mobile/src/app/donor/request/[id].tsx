@@ -5,9 +5,11 @@ import { Badge, Button, Card, Header, Icon, InfoRow, Screen, Sheet, T, dateLabel
 import { C } from '../../../constants/theme';
 import { useApp } from '../../../context/AppContext';
 import { useLanguage } from '../../../context/LanguageContext';
+import LiveRequestDetail from '../../../components/donor/LiveRequestDetail';
 export default function RequestDetail() {
   const { id } = useLocalSearchParams<{ id: string }>(); const app = useApp(); const { language, t } = useLanguage(); const [confirm, setConfirm] = useState(false);
   if (app.role !== 'donor') return <Redirect href="/" />;
+  if (app.mode === 'live') return <LiveRequestDetail id={id} />;
   const item = app.requests.find(request => request.id === id);
   if (!item) return <Screen><Header title="Not found" back /></Screen>;
   const stages = ['Submitted', 'Assigned', 'Pickup In Progress', 'Completed'];

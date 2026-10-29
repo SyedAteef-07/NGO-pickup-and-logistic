@@ -27,12 +27,13 @@ export interface DonorPickupRequest {
   readyAt: string
   pickupDeadline: string
   estimatedWeightKg: number
+  weightProvided?: boolean
   totalVessels: number
   foods: FoodItemDetail[]
   handlingRequirements: string
   equipment: EquipmentRequirement
   safetyReview?: 'PENDING' | 'APPROVED' | 'REJECTED'
-  status: 'SUBMITTED' | 'ASSIGNED' | 'IN_TRANSIT' | 'DELIVERED' | 'COMPLETED'
+  status: 'SUBMITTED' | 'ASSIGNED' | 'IN_TRANSIT' | 'DELIVERED' | 'COMPLETED' | 'CANCELLED'
   pickup?: {
     id: string
     status: string
@@ -246,7 +247,7 @@ const SEEDED_DONOR_REQUESTS: DonorPickupRequest[] = [
  * Fetch all available donor requests from the backend API,
  * merging with any donor requests submitted by the teammate's donor app.
  */
-export async function fetchAllDonorRequests(): Promise<DonorPickupRequest[]> {
+export async function fetchAllDonorRequests(liveOnly = false): Promise<DonorPickupRequest[]> {
   const result: DonorPickupRequest[] = []
   const seenIds = new Set<string>()
 
@@ -265,7 +266,8 @@ export async function fetchAllDonorRequests(): Promise<DonorPickupRequest[]> {
           }))
 
           const eq = calculateEquipmentRequirements(foods, item.handlingRequirements || '')
-          const totalVessels = Math.max(1, Math.ceil((Number(item.estimatedWeightKg) || 20) / 15))
+          const weightProvided = item.estimatedWeightKg != null && Number(item.estimatedWeightKg) > 0
+          const totalVessels = weightProvided ? Math.max(1, Math.ceil(Number(item.estimatedWeightKg) / 15)) : 0
           const pickup = item.pickup
             ? {
                 id: item.pickup.id,
@@ -276,15 +278,18 @@ export async function fetchAllDonorRequests(): Promise<DonorPickupRequest[]> {
                 assignmentStatus: item.pickup.assignmentStatus ?? null,
               }
             : null
-          const status = pickup?.assignmentStatus
-            ? 'ASSIGNED'
-            : pickup?.status === 'DELIVERED'
-              ? 'DELIVERED'
-              : ['EN_ROUTE', 'ARRIVED_AT_DONOR', 'FOOD_COLLECTED'].includes(pickup?.status ?? '')
-                ? 'IN_TRANSIT'
-                : pickup?.status === 'ASSIGNED'
-                  ? 'ASSIGNED'
-                  : item.status || 'SUBMITTED'
+          const pickupStatus = item.pickup?.status
+          const status: DonorPickupRequest['status'] = item.status === 'CANCELLED'
+            ? 'CANCELLED'
+            : pickup?.assignmentStatus
+              ? 'ASSIGNED'
+              : pickupStatus === 'DELIVERED'
+                ? 'DELIVERED'
+                : ['EN_ROUTE', 'ARRIVED_AT_DONOR', 'FOOD_COLLECTED'].includes(pickupStatus ?? '')
+                  ? 'IN_TRANSIT'
+                  : pickupStatus === 'ASSIGNED'
+                    ? 'ASSIGNED'
+                    : item.status || 'SUBMITTED'
 
           result.push({
             id: item.id,
@@ -294,7 +299,8 @@ export async function fetchAllDonorRequests(): Promise<DonorPickupRequest[]> {
             contactPhone: item.contactPhoneE164,
             readyAt: item.readyAt,
             pickupDeadline: item.pickupDeadline,
-            estimatedWeightKg: Number(item.estimatedWeightKg) || 20,
+            estimatedWeightKg: weightProvided ? Number(item.estimatedWeightKg) : (Number(item.estimatedWeightKg) || 0),
+            weightProvided,
             totalVessels,
             foods,
             handlingRequirements: item.handlingRequirements || '',
@@ -305,16 +311,17 @@ export async function fetchAllDonorRequests(): Promise<DonorPickupRequest[]> {
           })
           seenIds.add(item.id)
         }
+        return result
       }
-      return result
     } catch (error) {
-      // Do not turn an authentication or API failure into a misleading empty
-      // live result.  The page owns the visible error/retry state.
-      throw error
+      if (liveOnly || isLiveAdmin()) throw error
+      // Demo mode may use local donor records when the API is unavailable.
     }
   }
 
-  // 2. Demo Mode only: Read from teammate's donor portal storage (aa:donations)
+  if (liveOnly || isLiveAdmin()) return result
+
+  // 2. Read from teammate's donor portal storage (aa:donations)
   if (typeof window !== 'undefined') {
     try {
       const raw = window.localStorage.getItem('aa:donations')

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { env } from '../config/env';
 import { HttpError } from '../middleware/errorHandler';
+import { reportInviteFailure } from '../utils/safeDiagnostics';
 
 export type VerifiedIdentity = { authUserId: string; email: string };
 
@@ -11,7 +12,7 @@ function getSupabaseAdminClient() {
   if (!env.supabaseUrl || !env.supabaseSecretKey) {
     throw new HttpError(
       503,
-      'SERVICE_UNAVAILABLE',
+      'INVITE_CONFIGURATION_ERROR',
       'Volunteer invitation is not configured.'
     );
   }
@@ -32,7 +33,6 @@ function getSupabaseAdminClient() {
 
   return adminClient;
 }
-
 export async function verifySupabaseToken(token: string): Promise<VerifiedIdentity> {
   if (!env.supabaseUrl || !env.supabasePublishableKey) {
     throw new HttpError(503, 'SERVICE_UNAVAILABLE', 'Authentication is not configured.');
@@ -65,6 +65,7 @@ export async function inviteSupabaseUserByEmail(
 ): Promise<InvitedSupabaseUser> {
   const supabase = getSupabaseAdminClient();
   const inviteNonce = randomUUID();
+  const startedAt = Date.now();
 
   try {
     const { data, error } =
@@ -74,6 +75,7 @@ export async function inviteSupabaseUserByEmail(
       });
 
     if (error) {
+      reportInviteFailure(error);
       const duplicate =
         ['email_exists', 'user_already_exists'].includes(error.code ?? '')
         || /already.*registered|already.*exists/i.test(error.message);
@@ -81,14 +83,26 @@ export async function inviteSupabaseUserByEmail(
       if (duplicate) {
         throw new HttpError(
           409,
-          'RESOURCE_CONFLICT',
+          'VOLUNTEER_ALREADY_EXISTS',
           'An authentication account already exists for this email.'
         );
       }
 
+      if (error.code === 'email_address_not_authorized') {
+        throw new HttpError(422, 'INVITE_EMAIL_NOT_AUTHORIZED', 'This address cannot receive invitations with current email settings.');
+      }
+
+      if (error.status === 429 || /rate[_ -]?limit|too many requests|email rate limit/i.test(`${error.code ?? ''} ${error.message}`)) {
+        throw new HttpError(429, 'INVITE_RATE_LIMITED', 'Invitation email limit reached. Please wait before trying again.');
+      }
+
+      if (/redirect/i.test(`${error.code ?? ''} ${error.message}`)) {
+        throw new HttpError(503, 'INVITE_CONFIGURATION_ERROR', 'Invitation redirect is not configured correctly.');
+      }
+
       throw new HttpError(
         503,
-        'SERVICE_UNAVAILABLE',
+        'INVITE_SERVICE_UNAVAILABLE',
         'The volunteer invitation could not be created.'
       );
     }
@@ -96,7 +110,7 @@ export async function inviteSupabaseUserByEmail(
     if (!data.user?.id) {
       throw new HttpError(
         503,
-        'SERVICE_UNAVAILABLE',
+        'INVITE_SERVICE_UNAVAILABLE',
         'The authentication provider did not return an invited user.'
       );
     }
@@ -104,30 +118,22 @@ export async function inviteSupabaseUserByEmail(
     // Supabase may successfully re-invite an existing unconfirmed user. Its
     // existing metadata does not contain this request's fresh nonce, so never
     // provision or compensate that account as though it were newly created.
-    if (data.user.user_metadata?.aaharaconnectInviteNonce !== inviteNonce) {
-      throw new HttpError(409, 'RESOURCE_CONFLICT', 'An authentication account already exists for this email.');
+    const createdAt = Date.parse(data.user.created_at ?? '');
+    if (data.user.user_metadata?.aaharaconnectInviteNonce !== inviteNonce
+      || !Number.isFinite(createdAt) || createdAt < startedAt - 5000) {
+      throw new HttpError(409, 'VOLUNTEER_ALREADY_EXISTS', 'An authentication account already exists for this email.');
     }
 
     return { authUserId: data.user.id, inviteNonce };
   } catch (error) {
     if (error instanceof HttpError) throw error;
 
+    reportInviteFailure(error);
+
     throw new HttpError(
       503,
-      'SERVICE_UNAVAILABLE',
+      'INVITE_SERVICE_UNAVAILABLE',
       'The authentication service is unavailable.'
     );
-  }
-}
-
-export async function revokeNewSupabaseInvite(invited: InvitedSupabaseUser): Promise<boolean> {
-  try {
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase.auth.admin.getUserById(invited.authUserId);
-    if (error || data.user?.user_metadata?.aaharaconnectInviteNonce !== invited.inviteNonce) return false;
-    const removed = await supabase.auth.admin.deleteUser(invited.authUserId);
-    return !removed.error;
-  } catch {
-    return false;
   }
 }

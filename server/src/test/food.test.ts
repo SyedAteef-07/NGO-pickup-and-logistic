@@ -163,6 +163,16 @@ describe('Food and Donor Management API (Module 2)', () => {
       expect(res.body.error.code).toBe('FORBIDDEN');
     });
 
+    it('rejects VOLUNTEER role reading a food request by ID with 403', async () => {
+      findUser.mockResolvedValue(volunteerUser);
+      const res = await request(app)
+        .get(`/api/v1/food-requests/${sampleFoodRequestId}`)
+        .set('Authorization', 'Bearer volunteer-token');
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+      expect(query).not.toHaveBeenCalled();
+    });
+
     it('rejects non-admin role attempting safety review with 403', async () => {
       const res = await request(app)
         .post(`/api/v1/food-requests/${sampleFoodRequestId}/safety-review`)

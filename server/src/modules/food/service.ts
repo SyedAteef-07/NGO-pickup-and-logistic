@@ -121,6 +121,9 @@ export async function getFoodRequestById(
   appUser: AppUser,
   client?: PoolClient
 ): Promise<FoodRequestDetail> {
+  if (appUser.role !== 'DONOR' && appUser.role !== 'ADMIN') {
+    throw new HttpError(403, 'FORBIDDEN', 'This role cannot view food requests.');
+  }
   const foodRequest = await foodRepository.findFoodRequestById(id, client);
   if (!foodRequest) {
     throw new HttpError(404, 'NOT_FOUND', 'Food request not found.');
