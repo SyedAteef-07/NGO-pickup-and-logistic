@@ -3,7 +3,9 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  ExternalLink,
   MapPin,
+  Navigation,
   Sparkles,
   Truck,
 } from 'lucide-react'
@@ -17,9 +19,11 @@ import {
   updateDemoAssignmentStatus,
   updateDemoPickupStatus,
   useAssignWizardResources,
+  usePickupVessels,
   useVehicleAssignments,
 } from './hooks'
 import type { LiveAssignment, Pickup, PickupStatus } from './types'
+import { buildTripRoute } from './vehicleRouting'
 
 interface Props {
   pickup: Pickup
@@ -76,6 +80,7 @@ export function PickupDrawer({
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
 
   const { volunteers: resourceVolunteers, drivers: resourceDrivers, vehicles: resourceVehicles } = useAssignWizardResources()
+  const { issuedVessels } = usePickupVessels(pickup?.id)
 
   const resolvedDriver = useMemo(() => {
     if (!currentAssignment?.driverId) return null
@@ -94,6 +99,15 @@ export function PickupDrawer({
       return { id, name: match?.name || match?.fullName || id }
     })
   }, [currentAssignment?.volunteerIds, resourceVolunteers])
+
+  const assignedTripRoute = useMemo(() => {
+    if (!resolvedVehicle) return null
+    return buildTripRoute(
+      resolvedVehicle,
+      pickup?.donorLocation || (pickup as any)?.pickupAddress || '',
+      pickup?.deliveryAddress || ''
+    )
+  }, [resolvedVehicle, pickup?.donorLocation, (pickup as any)?.pickupAddress, pickup?.deliveryAddress])
 
   useEffect(() => {
     let isCancelled = false
@@ -493,6 +507,101 @@ export function PickupDrawer({
                   <strong style={{ wordBreak: 'break-all' }}>{currentAssignment.teamId}</strong>
                 </div>
               )}
+              <div>
+                <span>{'Issued Vessels'}</span>
+                <strong>
+                  {issuedVessels.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {issuedVessels.map(vsl => (
+                        <div key={vsl.id} style={{ fontSize: '0.8rem', color: '#047857' }}>
+                          ✓ {`${vsl.vesselCode} — ${vsl.name} (${vsl.capacityValue} ${vsl.capacityUnit})`}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ color: '#64748b', fontWeight: 400, fontSize: '0.82rem' }}>
+                      {'No tracked vessels issued'}
+                    </span>
+                  )}
+                </strong>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Assigned Vehicle Route & Navigation */}
+        {assignedTripRoute && (
+          <div
+            className="detail-section"
+            style={{
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              padding: '0.85rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.88rem', color: '#0f172a' }}>
+                <Navigation size={16} style={{ color: '#059669' }} />
+                <span>{'Assigned Route & Vehicle Proximity'}</span>
+              </div>
+              <a
+                href={assignedTripRoute.navigationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  color: '#047857',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  textDecoration: 'none',
+                  background: '#ffffff',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: '4px',
+                  padding: '2px 8px',
+                }}
+              >
+                {'Google Maps Navigation'} <ExternalLink size={12} />
+              </a>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 600, color: '#0f172a' }}>{'Vehicle Station:'}</span>
+                <span style={{ color: '#334155' }}>{assignedTripRoute.vehicleLocation.isLiveGps ? '🟢 Live GPS: ' : '🏢 Depot: '}{assignedTripRoute.vehicleLocation.name}</span>
+                <span style={{ background: '#ecfdf5', color: '#065f46', fontSize: '0.72rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px' }}>
+                  {`📍 ${assignedTripRoute.distanceToDonorKm} km to donor (~${assignedTripRoute.durationToDonorMins} mins)`}
+                </span>
+              </div>
+
+              <div style={{ color: '#64748b', fontSize: '0.76rem' }}>
+                {`Total Trip: ${assignedTripRoute.totalDistanceKm} km (~${assignedTripRoute.totalDurationMins} mins dispatch & delivery)`}
+              </div>
+
+              {/* Legs */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 8px' }}>
+                  <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{'🚀 Leg 1: Station ➔ Donor Venue'}</span>
+                    <span style={{ color: '#059669' }}>{`${assignedTripRoute.legs?.[0]?.distanceKm ?? 0} km · ~${assignedTripRoute.legs?.[0]?.durationMins ?? 0} min`}</span>
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '0.72rem', marginTop: '2px' }}>
+                    {assignedTripRoute.legs?.[0]?.instructions?.[1] || assignedTripRoute.legs?.[0]?.instructions?.[0] || ''}
+                  </div>
+                </div>
+
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 8px' }}>
+                  <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{'🥘 Leg 2: Donor Venue ➔ Distribution Center'}</span>
+                    <span style={{ color: '#059669' }}>{`${assignedTripRoute.legs?.[1]?.distanceKm ?? 0} km · ~${assignedTripRoute.legs?.[1]?.durationMins ?? 0} min`}</span>
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '0.72rem', marginTop: '2px' }}>
+                    {assignedTripRoute.legs?.[1]?.instructions?.[1] || assignedTripRoute.legs?.[1]?.instructions?.[0] || ''}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -623,25 +732,28 @@ export function PickupDrawer({
               <p>No active projection items for this vehicle.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {vehicleAssignments.map(va => (
-                  <div
-                    key={va.assignmentId}
-                    style={{
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '0.85rem',
-                    }}
-                  >
-                    <div>
-                      <Truck size={14} /> <strong>{va.assignmentId}</strong> · {va.status}
+                {vehicleAssignments.map(va => {
+                  const start = va.windowStartsAt || va.pickupWindow?.windowStartsAt
+                  const end = va.windowEndsAt || va.pickupWindow?.windowEndsAt
+                  return (
+                    <div
+                      key={va.assignmentId}
+                      style={{
+                        padding: '0.5rem',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      <div>
+                        <Truck size={14} /> <strong>{va.assignmentId}</strong> · {va.status}
+                      </div>
+                      <small>
+                        {start ? formatTime(start) : 'N/A'} – {end ? formatTime(end) : 'N/A'}
+                      </small>
                     </div>
-                    <small>
-                      {formatTime(va.pickupWindow.windowStartsAt)} –{' '}
-                      {formatTime(va.pickupWindow.windowEndsAt)}
-                    </small>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
