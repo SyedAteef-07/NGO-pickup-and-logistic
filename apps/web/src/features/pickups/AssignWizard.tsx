@@ -5,6 +5,10 @@ import {
   Box,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Navigation,
   ShieldAlert,
   Sparkles,
   Truck,
@@ -62,6 +66,7 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
   const [selectedVehicleId, setSelectedVehicleId] = useState('')
   const [selectedVesselIds, setSelectedVesselIds] = useState<string[]>([])
   const [role] = useState('Pickup Volunteer')
+  const [expandedRouteVehicleId, setExpandedRouteVehicleId] = useState<string | null>(null)
 
   const aiAssessment = useMemo(
     () =>
@@ -223,9 +228,24 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
       rankVehiclesForPickup(activeVehicles, {
         totalEstimatedWeightKg: Number(estimatedLoadKg),
         totalVessels: Number(containerCount),
+        pickupAddress: pickup.donorLocation || (pickup as any).pickupAddress || '',
+        deliveryAddress: pickup.deliveryAddress || '',
       }),
-    [activeVehicles, estimatedLoadKg, containerCount]
+    [
+      activeVehicles,
+      estimatedLoadKg,
+      containerCount,
+      pickup.donorLocation,
+      (pickup as any).pickupAddress,
+      pickup.deliveryAddress,
+    ]
   )
+
+  useEffect(() => {
+    if (!selectedVehicleId && vehicleRanking.bestVehicle?.vehicleId) {
+      setSelectedVehicleId(vehicleRanking.bestVehicle.vehicleId)
+    }
+  }, [selectedVehicleId, vehicleRanking.bestVehicle?.vehicleId])
 
   const canContinue = () => {
     if (step === 0) return selectedVolunteerIds.length > 0
@@ -718,36 +738,162 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
                 <p>Choose a vehicle with sufficient capacity and fleet readiness. Assignment-window reservations are rechecked on confirmation.</p>
               </div>
 
-              {/* Vehicle Logistics Recommendation Banner */}
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)',
-                  border: '1px solid #a7f3d0',
-                  borderRadius: '8px',
-                  padding: '0.85rem',
-                  marginBottom: '1rem',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.6rem',
-                }}
-              >
-                <Sparkles size={18} style={{ color: '#059669', flexShrink: 0, marginTop: '2px' }} />
-                <div style={{ fontSize: '0.85rem' }}>
-                  <div style={{ fontWeight: 700, color: '#065f46' }}>
-                    {'Vehicle Suitability Recommendation'}
+              {/* Vehicle Logistics & Nearest Route Recommendation Banner */}
+              {vehicleRanking.bestVehicle ? (
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)',
+                    border: '1px solid #a7f3d0',
+                    borderRadius: '8px',
+                    padding: '0.85rem',
+                    marginBottom: '1rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                    <Sparkles size={18} style={{ color: '#059669', flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ fontSize: '0.85rem', flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                        <div style={{ fontWeight: 700, color: '#065f46' }}>
+                          {'Nearest Vehicle & Route Recommendation'}
+                        </div>
+                        {vehicleRanking.bestVehicle.route && (
+                          <a
+                            href={vehicleRanking.bestVehicle.route.navigationUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: '#047857',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              textDecoration: 'none',
+                              background: '#ffffff',
+                              border: '1px solid #a7f3d0',
+                              borderRadius: '4px',
+                              padding: '2px 8px',
+                            }}
+                          >
+                            <Navigation size={12} /> {'Live Google Maps Route'} <ExternalLink size={12} />
+                          </a>
+                        )}
+                      </div>
+
+                      <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <Truck size={15} style={{ color: '#059669' }} />
+                        <span>{`${vehicleRanking.bestVehicle.kind} (${vehicleRanking.bestVehicle.registrationNumber}) · ${vehicleRanking.bestVehicle.suitabilityScore}% match`}</span>
+                        {vehicleRanking.bestVehicle.distanceToDonorKm != null && (
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, background: '#dcfce7', color: '#15803d', padding: '1px 6px', borderRadius: '4px' }}>
+                            {`📍 ${vehicleRanking.bestVehicle.distanceToDonorKm} km to donor (~${vehicleRanking.bestVehicle.durationToDonorMins} mins)`}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                          {vehicleRanking.bestVehicle.isLiveLocation ? '🟢 Live GPS: ' : '🏢 Depot: '}{vehicleRanking.bestVehicle.locationLabel}
+                        </span>
+                      </div>
+
+                      <p style={{ margin: '4px 0 0', color: '#334155', fontSize: '0.8rem' }}>
+                        {vehicleRanking.bestVehicle.reasons[0] || aiAssessment.vehicle.reason}
+                      </p>
+
+                      {/* Specified Route summary & Turn-by-Turn Waypoints */}
+                      {vehicleRanking.bestVehicle.route && (
+                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #d1fae5' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                            <span style={{ fontSize: '0.78rem', color: '#065f46', fontWeight: 600 }}>
+                              {`🗺️ Trip Corridor: ${vehicleRanking.bestVehicle.route.routeSummary}`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedRouteVehicleId(prev => prev === vehicleRanking.bestVehicle?.vehicleId ? null : vehicleRanking.bestVehicle?.vehicleId || null)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#047857',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: 0,
+                              }}
+                            >
+                              {expandedRouteVehicleId === vehicleRanking.bestVehicle.vehicleId ? (
+                                <>{'Hide Turn-by-Turn Waypoints'} <ChevronUp size={13} /></>
+                              ) : (
+                                <>{'View Turn-by-Turn Waypoints'} <ChevronDown size={13} /></>
+                              )}
+                            </button>
+                          </div>
+
+                          {expandedRouteVehicleId === vehicleRanking.bestVehicle.vehicleId && (
+                            <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {vehicleRanking.bestVehicle.route.legs.map((leg, lIdx) => (
+                                <div
+                                  key={lIdx}
+                                  style={{
+                                    background: '#ffffff',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '6px',
+                                    padding: '8px 10px',
+                                    fontSize: '0.78rem',
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>
+                                      {lIdx === 0 ? '🚀 Leg 1: Vehicle Hub ➔ Donor Venue' : '🥘 Leg 2: Donor Venue ➔ NGO Distribution Center'}
+                                    </span>
+                                    <span style={{ color: '#059669', fontWeight: 600 }}>
+                                      {`${leg.distanceKm} km · ~${leg.durationMins} mins`}
+                                    </span>
+                                  </div>
+                                  <div style={{ color: '#475569', fontSize: '0.74rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    {leg.instructions.map((inst, iIdx) => (
+                                      <div key={iIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+                                        <span style={{ color: '#16a34a', fontWeight: 700 }}>•</span>
+                                        <span>{inst}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Truck size={15} style={{ color: '#059669' }} />
-                    <span>{vehicleRanking.bestVehicle ? `${vehicleRanking.bestVehicle.kind} (${vehicleRanking.bestVehicle.registrationNumber}) · ${vehicleRanking.bestVehicle.suitabilityScore}% match` : `${aiAssessment.vehicle.vehicleType} (Estimated Profile)`}</span>
-                  </div>
-                  <p style={{ margin: '3px 0 0', color: '#475569', fontSize: '0.8rem' }}>
-                    {vehicleRanking.bestVehicle?.reasons[0] || aiAssessment.vehicle.reason}
-                  </p>
-                  <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: '0.78rem' }}>
-                    Vehicle and donor coordinates are not available for this pickup. This recommendation uses fleet readiness and capacity only; no nearest-vehicle claim, route, distance, or ETA is available.
-                  </p>
                 </div>
-              </div>
+              ) : (
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)',
+                    border: '1px solid #a7f3d0',
+                    borderRadius: '8px',
+                    padding: '0.85rem',
+                    marginBottom: '1rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.6rem',
+                  }}
+                >
+                  <Sparkles size={18} style={{ color: '#059669', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ fontSize: '0.85rem' }}>
+                    <div style={{ fontWeight: 700, color: '#065f46' }}>
+                      {'Vehicle Logistics Profile'}
+                    </div>
+                    <div style={{ fontWeight: 600, color: '#0f172a', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Truck size={15} style={{ color: '#059669' }} />
+                      <span>{aiAssessment.vehicle.vehicleType}</span>
+                    </div>
+                    <p style={{ margin: '3px 0 0', color: '#475569', fontSize: '0.8rem' }}>
+                      {aiAssessment.vehicle.reason}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {waitingTeam5Vehicles && vehicles.length === 0 ? (
                 <div className="wizard-tip" style={{ marginBottom: '1rem' }}>
@@ -824,6 +970,14 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
                               {reg}
                             </span>
                             <span style={{ fontSize: '0.82rem', color: '#334155', fontWeight: 500 }}>{veh.kind}</span>
+                            {veh.distanceToDonorKm != null && (
+                              <span style={{ fontSize: '0.72rem', fontWeight: 600, background: '#ecfdf5', color: '#065f46', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px' }}>
+                                {`📍 ${veh.distanceToDonorKm} km to donor (~${veh.durationToDonorMins} min)`}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.73rem', color: '#64748b', marginTop: '2px' }}>
+                            <span>{veh.isLiveLocation ? '🟢 Live GPS: ' : '🏢 Base Depot: '}{veh.locationLabel}</span>
                           </div>
                           {veh.reasons.length > 0 && (
                             <div style={{ color: '#059669', fontSize: '0.73rem', marginTop: '2px' }}>
@@ -1275,15 +1429,26 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
                       if (!veh) return <p style={{ margin: 0, fontSize: '0.8rem', color: '#dc2626' }}>No vehicle selected.</p>
                       return (
                         <div style={{ fontSize: '0.82rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <span style={{ fontFamily: 'monospace', fontWeight: 700, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '1px 6px', borderRadius: '4px' }}>
                               {veh.registrationNumber}
                             </span>
                             <span style={{ color: '#334155' }}>{veh.kind}</span>
+                            {veh.distanceToDonorKm != null && (
+                              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#047857' }}>
+                                {`· 📍 ${veh.distanceToDonorKm} km away (~${veh.durationToDonorMins} mins)`}
+                              </span>
+                            )}
                           </div>
                           <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '3px' }}>
-                            {`Capacity: ${veh.capacityKg} kg · Load: ${estimatedLoadKg} kg`}
+                            {`Capacity: ${veh.capacityKg} kg · Load: ${estimatedLoadKg} kg · Location: ${veh.locationLabel}`}
                           </div>
+                          {veh.route && (
+                            <div style={{ marginTop: '4px', fontSize: '0.74rem', color: '#047857', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Navigation size={12} />
+                              <span>{veh.route.routeSummary}</span>
+                            </div>
+                          )}
                         </div>
                       )
                     })()}
@@ -1343,6 +1508,41 @@ export function AssignWizard({ pickup, onClose, onSuccess, notify }: Props) {
                       <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Delivery Address</span>
                       <span style={{ color: '#334155' }}>{pickup.deliveryAddress}</span>
                     </div>
+                    {(() => {
+                      const veh = vehicleRanking.ranked.find(v => v.vehicleId === selectedVehicleId)
+                      if (veh?.route) {
+                        return (
+                          <div style={{ gridColumn: '1 / -1', marginTop: '6px', paddingTop: '8px', borderTop: '1px dashed #cbd5e1' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                              <span style={{ fontSize: '0.78rem', color: '#065f46', fontWeight: 600 }}>
+                                {`📍 Dispatch Route: ${veh.distanceToDonorKm} km to donor, ${veh.route.totalDistanceKm} km total trip (~${veh.route.totalDurationMins} mins)`}
+                              </span>
+                              <a
+                                href={veh.route.navigationUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  color: '#047857',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  textDecoration: 'none',
+                                  background: '#ffffff',
+                                  border: '1px solid #a7f3d0',
+                                  borderRadius: '4px',
+                                  padding: '2px 8px',
+                                }}
+                              >
+                                {'View Live Route on Google Maps'} <ExternalLink size={12} />
+                              </a>
+                            </div>
+                          </div>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                 </div>
               </div>

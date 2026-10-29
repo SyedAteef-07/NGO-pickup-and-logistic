@@ -65,8 +65,9 @@ async function main() {
 
   console.log('\n--- Step 4: Create ONE clearly identifiable test food request ---');
   const now = new Date();
-  const readyAt = new Date(now.getTime() + 1800000).toISOString();
-  const deadline = new Date(now.getTime() + 14400000).toISOString();
+  const futureHourOffset = 6 + Math.floor(Math.random() * 50);
+  const readyAt = new Date(now.getTime() + futureHourOffset * 3600000).toISOString();
+  const deadline = new Date(now.getTime() + (futureHourOffset + 3) * 3600000).toISOString();
   const testPayload = {
     sourceName: 'Real Supabase Live Test Hall',
     sourceType: 'EVENT',
@@ -175,7 +176,7 @@ async function main() {
   console.log('\n--- Step 10: Assign vehicle, driver, and volunteer via live API ---');
   // Get canonical driver & vehicle from DB
   const driverQuery = await pool.query('SELECT d.id as driver_id, d.licence_number, p.name FROM app.drivers d JOIN app.people p ON d.person_id = p.id WHERE d.status = $1 LIMIT 1', ['ACTIVE']);
-  const vehicleQuery = await pool.query('SELECT id as vehicle_id, registration_number, capacity_kg FROM app.vehicles WHERE status = $1 LIMIT 1', ['AVAILABLE']);
+  const vehicleQuery = await pool.query('SELECT id as vehicle_id, registration_number, capacity_kg FROM app.vehicles WHERE status = $1 LIMIT 1', ['ACTIVE']);
   const volQuery = await pool.query('SELECT v.id as volunteer_id, p.name FROM app.volunteers v JOIN app.people p ON v.person_id = p.id WHERE v.status = $1 LIMIT 1', ['ACTIVE']);
 
   const driver = driverQuery.rows[0];
@@ -183,7 +184,7 @@ async function main() {
   const volunteer = volQuery.rows[0];
 
   const availStart = new Date(now.getTime() - 2 * 3600 * 1000);
-  const availEnd = new Date(now.getTime() + 24 * 3600 * 1000);
+  const availEnd = new Date(now.getTime() + 100 * 3600 * 1000);
   await pool.query(
     "INSERT INTO app.volunteer_availability (volunteer_id, starts_at, ends_at, state) VALUES ($1, $2, $3, 'AVAILABLE') ON CONFLICT DO NOTHING",
     [volunteer.volunteer_id, availStart, availEnd]

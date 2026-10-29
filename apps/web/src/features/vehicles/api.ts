@@ -19,6 +19,11 @@ export interface ApiVehicleItem {
   indicativeMaxVessels: number | null;
   createdAt: string;
   readiness: VehicleReadiness;
+  latestLocation?: {
+    latitude: number;
+    longitude: number;
+    recordedAt?: string;
+  } | null;
   currentDriver: {
     driverId: string;
     name: string;

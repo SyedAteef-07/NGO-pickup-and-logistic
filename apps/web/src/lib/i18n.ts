@@ -605,6 +605,17 @@ const kannada: Record<string, string> = {
   'No vehicles available.': 'ಯಾವುದೇ ವಾಹನಗಳು ಲಭ್ಯವಿಲ್ಲ.',
   'No food requests available': 'ಯಾವುದೇ ಆಹಾರ ವಿನಂತಿಗಳು ಲಭ್ಯವಿಲ್ಲ',
   'Loading donor requests from backend…': 'ಸರ್ವರ್‌ನಿಂದ ದಾನಿಗಳ ವಿನಂತಿಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗುತ್ತಿದೆ…',
+  'Nearest Vehicle & Route Recommendation': 'ಹತ್ತಿರದ ವಾಹನ ಮತ್ತು ಮಾರ್ಗದ ಶಿಫಾರಸು',
+  'Live Google Maps Route': 'ಲೈವ್ ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್ ಮಾರ್ಗ',
+  'View Turn-by-Turn Waypoints': 'ಹಂತ ಹಂತದ ಮಾರ್ಗಸೂಚಿಗಳನ್ನು ವೀಕ್ಷಿಸಿ',
+  'Hide Turn-by-Turn Waypoints': 'ಹಂತ ಹಂತದ ಮಾರ್ಗಸೂಚಿಗಳನ್ನು ಮರೆಮಾಡಿ',
+  'Vehicle Logistics Profile': 'ವಾಹನ ಲಾಜಿಸ್ಟಿಕ್ಸ್ ಪ್ರೊಫೈಲ್',
+  'View Live Route on Google Maps': 'ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್‌ನಲ್ಲಿ ಲೈವ್ ಮಾರ್ಗ ವೀಕ್ಷಿಸಿ',
+  'Assigned Route & Vehicle Proximity': 'ನಿಯೋಜಿತ ಮಾರ್ಗ ಮತ್ತು ವಾಹನದ ಸಾಮೀಪ್ಯ',
+  'Google Maps Navigation': 'ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್ ನ್ಯಾವಿಗೇಷನ್',
+  'Vehicle Station:': 'ವಾಹನ ನಿಲ್ದಾಣ:',
+  '🚀 Leg 1: Station ➔ Donor Venue': '🚀 ಹಂತ 1: ನಿಲ್ದಾಣ ➔ ದಾನಿಗಳ ಸ್ಥಳ',
+  '🥘 Leg 2: Donor Venue ➔ Distribution Center': '🥘 ಹಂತ 2: ದಾನಿಗಳ ಸ್ಥಳ ➔ ವಿತರಣಾ ಕೇಂದ್ರ',
 }
 
 function translateDynamic(value: string): string | undefined {

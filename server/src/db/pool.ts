@@ -21,7 +21,12 @@ export function getPool(): Pool {
       max: 10,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
-      ssl: env.databaseSsl ? { rejectUnauthorized: true, ...(caCert ? { ca: caCert } : {}) } : undefined,
+      ssl: env.databaseSsl
+        ? {
+            rejectUnauthorized: env.nodeEnv === 'production' || Boolean(caCert),
+            ...(caCert ? { ca: caCert } : {}),
+          }
+        : undefined,
     });
 
     pool.on('error', (error) => {

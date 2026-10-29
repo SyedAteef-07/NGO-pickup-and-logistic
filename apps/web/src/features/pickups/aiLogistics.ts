@@ -7,6 +7,7 @@ import type {
   VesselRecommendation,
   VolunteerCandidateScore,
 } from './types'
+import { buildTripRoute } from './vehicleRouting'
 
 export function calculateAiLogistics(
   foods: FoodItemSummary[] = [],
@@ -212,11 +213,13 @@ export interface VehiclePickupRequirement {
   totalEstimatedWeightKg: number
   totalVessels?: number
   foodTypes?: string[]
+  pickupAddress?: string
+  deliveryAddress?: string
 }
 
 /**
  * Deterministic multi-criteria scoring algorithm to rank candidate vehicles
- * based on verified payload capacity, operational status, and vessel profile.
+ * based on verified payload capacity, operational status, proximity to donor, and trip route.
  */
 export function rankVehiclesForPickup(
   vehicles: any[],
@@ -237,6 +240,10 @@ export function rankVehiclesForPickup(
     const capacityKg = Number(v.capacityKg || v.capacity || 0)
     const status = String(v.status || 'ACTIVE').toUpperCase()
     const maxVessels = v.indicativeMaxVessels != null ? Number(v.indicativeMaxVessels) : undefined
+
+    const tripRoute = buildTripRoute(v, requirement.pickupAddress, requirement.deliveryAddress)
+    const distanceKm = tripRoute.distanceToDonorKm
+    const durationMins = tripRoute.durationToDonorMins
 
     const reasons: string[] = []
     const constraints: string[] = []
@@ -308,54 +315,71 @@ export function rankVehiclesForPickup(
         rank: 999,
         reasons,
         constraints,
+        distanceToDonorKm: distanceKm,
+        durationToDonorMins: durationMins,
+        locationLabel: tripRoute.vehicleLocation.name,
+        isLiveLocation: tripRoute.vehicleLocation.isLiveGps,
+        route: tripRoute,
       }
     }
 
     // Score calculation for eligible vehicles (0-100 deterministic scoring algorithm)
-    let score = 70
+    let score = 50
     const marginKg = capacityKg - loadKg
 
-    // Utilization evaluation:
+    // 1. Proximity score (closer to donor yields higher score)
+    const proximityBonus = Math.max(5, Math.round(35 - Math.min(distanceKm, 20) * 1.5))
+    score += proximityBonus
+    if (distanceKm <= 2.5) {
+      reasons.unshift(`📍 Nearest vehicle: stationed only ${distanceKm} km from donor venue (~${durationMins} mins dispatch time).`)
+    } else if (distanceKm <= 5.0) {
+      reasons.unshift(`📍 Close proximity: located ${distanceKm} km from donor venue (~${durationMins} mins transit time).`)
+    } else if (distanceKm <= 10.0) {
+      reasons.unshift(`📍 Regional dispatch: ${distanceKm} km from donor venue (~${durationMins} mins transit time).`)
+    } else if (distanceKm <= 15.0) {
+      reasons.unshift(`📍 Urban route: ${distanceKm} km from donor venue (~${durationMins} mins transit time).`)
+    } else {
+      reasons.unshift(`📍 Long-distance dispatch: ${distanceKm} km from donor venue (~${durationMins} mins transit time).`)
+    }
+
+    // 2. Capacity fit (up to 15 points)
     if (loadKg <= 25) {
-      // Small load: prefer smaller/EV vehicles
       if (kind.toLowerCase().includes('two') || kind.toLowerCase().includes('scooter') || kind.toLowerCase().includes('ev')) {
-        score += 25
+        score += 15
         reasons.push(`Optimal agility: compact EV vehicle maneuvers through urban traffic with zero emissions for ${loadKg} kg load.`)
       } else if (kind.toLowerCase().includes('3') || kind.toLowerCase().includes('auto')) {
-        score += 18
+        score += 12
         reasons.push(`Stable urban transport with ample ${marginKg} kg payload margin.`)
       } else {
         score += 8
         reasons.push(`High capacity headroom (${marginKg} kg buffer), though slightly oversized for a ${loadKg} kg load.`)
       }
     } else if (loadKg <= 120) {
-      // Medium load: 3-wheeler auto is ideal
       if (kind.toLowerCase().includes('3') || kind.toLowerCase().includes('auto')) {
-        score += 28
+        score += 15
         reasons.push(`Ideal fit: flatbed cargo auto easily handles ${loadKg} kg load with ${marginKg} kg buffer.`)
       } else if (kind.toLowerCase().includes('truck') || kind.toLowerCase().includes('ace')) {
-        score += 20
+        score += 12
         reasons.push(`Mini truck provides safe, stable loading bed with ${marginKg} kg buffer.`)
       } else {
-        score += 10
+        score += 8
         reasons.push(`Cargo van safely carries ${loadKg} kg load.`)
       }
     } else if (loadKg <= 500) {
-      // Large load: Mini truck (Tata Ace) is ideal
       if (kind.toLowerCase().includes('truck') || kind.toLowerCase().includes('ace')) {
-        score += 28
+        score += 15
         reasons.push(`Optimal payload fit: flatbed mini truck safely carries ${loadKg} kg bulk load (${marginKg} kg buffer).`)
       } else {
-        score += 20
+        score += 12
         reasons.push(`Large commercial cargo hold safely accommodates bulk food rescue load.`)
       }
     } else {
-      // Heavy banquet load: Refrigerated van or heavy truck
-      score += 25
+      score += 15
       reasons.push(`Heavy payload capability: safely transports ${loadKg} kg community banquet volume (${marginKg} kg buffer).`)
     }
 
     reasons.push(`Verified active vehicle with valid payload capacity of ${capacityKg} kg.`)
+    reasons.push(`Specified Route: ${tripRoute.routeSummary}`)
 
     return {
       vehicleId,
@@ -365,17 +389,28 @@ export function rankVehiclesForPickup(
       status,
       isEligible: true,
       isOverCapacity: false,
-      suitabilityScore: Math.min(100, score),
+      suitabilityScore: Math.min(100, Math.round(score)),
       rank: 1,
       reasons,
       constraints,
+      distanceToDonorKm: distanceKm,
+      durationToDonorMins: durationMins,
+      locationLabel: tripRoute.vehicleLocation.name,
+      isLiveLocation: tripRoute.vehicleLocation.isLiveGps,
+      route: tripRoute,
     }
   })
 
-  // Sort: eligible candidates by score DESC, then ineligible candidates
+  // Sort: eligible candidates primarily by distance to donor ASC (closest vehicle to donor recommended first),
+  // with suitability score breaking ties, followed by ineligible candidates
   scored.sort((a, b) => {
     if (a.isEligible && !b.isEligible) return -1
     if (!a.isEligible && b.isEligible) return 1
+    const distA = a.distanceToDonorKm ?? 999
+    const distB = b.distanceToDonorKm ?? 999
+    if (Math.abs(distA - distB) > 0.1) {
+      return distA - distB
+    }
     return b.suitabilityScore - a.suitabilityScore
   })
 
