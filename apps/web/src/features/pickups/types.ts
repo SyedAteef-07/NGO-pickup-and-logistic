@@ -50,6 +50,7 @@ export interface ContainerPlan {
 export interface CreateAssignmentInput {
   teamId?: string | null
   volunteerIds: string[]
+  vesselIds?: string[]
   driverId: string
   vehicleId: string
   role: string
@@ -160,4 +161,5 @@ export interface VolunteerCandidateScore {
   rank: number
   reasons: string[]
   constraints: string[]
+  availabilityLabel?: string
 }

@@ -17,6 +17,7 @@ import {
   updateDemoAssignmentStatus,
   updateDemoPickupStatus,
   useAssignWizardResources,
+  usePickupVessels,
   useVehicleAssignments,
 } from './hooks'
 import type { LiveAssignment, Pickup, PickupStatus } from './types'
@@ -76,6 +77,7 @@ export function PickupDrawer({
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
 
   const { volunteers: resourceVolunteers, drivers: resourceDrivers, vehicles: resourceVehicles } = useAssignWizardResources()
+  const { issuedVessels } = usePickupVessels(pickup?.id)
 
   const resolvedDriver = useMemo(() => {
     if (!currentAssignment?.driverId) return null
@@ -493,6 +495,24 @@ export function PickupDrawer({
                   <strong style={{ wordBreak: 'break-all' }}>{currentAssignment.teamId}</strong>
                 </div>
               )}
+              <div>
+                <span>{'Issued Vessels'}</span>
+                <strong>
+                  {issuedVessels.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {issuedVessels.map(vsl => (
+                        <div key={vsl.id} style={{ fontSize: '0.8rem', color: '#047857' }}>
+                          ✓ {`${vsl.vesselCode} — ${vsl.name} (${vsl.capacityValue} ${vsl.capacityUnit})`}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ color: '#64748b', fontWeight: 400, fontSize: '0.82rem' }}>
+                      {'No tracked vessels issued'}
+                    </span>
+                  )}
+                </strong>
+              </div>
             </div>
           </div>
         )}

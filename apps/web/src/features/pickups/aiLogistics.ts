@@ -250,7 +250,36 @@ export function rankVehiclesForPickup(
       constraints.push(`Vehicle status is ${status} (must be ACTIVE for dispatch).`)
     }
 
-    // 2. Capacity check
+    // 2. Authoritative Vehicle Readiness Check (Module 5 integration)
+    const readiness = v.readiness
+    if (readiness) {
+      if (readiness.isReady === false) {
+        isEligible = false
+        const blocking = readiness.reasons?.filter((r: any) => r.severity === 'BLOCKING') || []
+        if (blocking.length > 0) {
+          for (const b of blocking) {
+            constraints.push(`Readiness: ${b.message}`)
+          }
+        } else {
+          constraints.push('Vehicle is not ready according to fleet maintenance/downtime evaluation.')
+        }
+      }
+      const warnings = readiness.reasons?.filter((r: any) => r.severity === 'WARNING') || []
+      for (const w of warnings) {
+        reasons.push(`⚠️ ${w.message}`)
+      }
+    } else {
+      if (v.hasActiveDowntime || v.has_active_downtime) {
+        isEligible = false
+        constraints.push('Vehicle has an active downtime restriction scheduled.')
+      }
+      if (v.latestCondition === 'UNSAFE' || v.latest_condition === 'UNSAFE') {
+        isEligible = false
+        constraints.push('Vehicle condition is UNSAFE from latest maintenance service.')
+      }
+    }
+
+    // 3. Capacity check
     if (capacityKg < loadKg) {
       isEligible = false
       isOverCapacity = true
@@ -259,7 +288,7 @@ export function rankVehiclesForPickup(
       )
     }
 
-    // 3. Indicative vessels check if present
+    // 4. Indicative vessels check if present
     if (maxVessels != null && maxVessels < vesselCount) {
       constraints.push(
         `Vessel space constraint: vehicle specification accommodates ${maxVessels} vessels (${vesselCount} required).`
@@ -400,6 +429,10 @@ export function rankVolunteersForPickup(
       isEligible = false
       constraints.push('Volunteer is currently INACTIVE in roster.')
     }
+    if (v.windowAvailable === false) {
+      isEligible = false
+      constraints.push(String(v.windowAvailabilityReason || 'Volunteer availability does not cover this pickup window.'))
+    }
 
     if (!isEligible) {
       return {
@@ -413,6 +446,9 @@ export function rankVolunteersForPickup(
         rank: 999,
         reasons,
         constraints,
+        availabilityLabel: status !== 'ACTIVE'
+          ? 'Inactive roster'
+          : String(v.windowAvailabilityLabel || 'Unavailable'),
       }
     }
 
@@ -436,7 +472,9 @@ export function rankVolunteersForPickup(
       reasons.push('Experienced food rescue pickup volunteer.')
     }
 
-    reasons.push('Active volunteer available for scheduled pickup window.')
+    reasons.push(v.windowAvailable === true
+      ? 'Volunteer schedule covers the pickup window; server will revalidate on confirmation.'
+      : 'Active roster status only; pickup-window availability has not been verified.')
 
     return {
       volunteerId,
@@ -449,6 +487,7 @@ export function rankVolunteersForPickup(
       rank: 1,
       reasons,
       constraints,
+      availabilityLabel: String(v.windowAvailabilityLabel || (v.windowAvailable === true ? 'Schedule eligible' : 'Roster only')),
     }
   })
 
@@ -464,9 +503,19 @@ export function rankVolunteersForPickup(
 
   const suitable = scored.filter(c => c.isEligible)
   const bestVolunteer = suitable.length > 0 ? suitable[0] : null
+  const isWindowCheckPending = volunteers.some(v =>
+    v.windowAvailabilityLabel === 'Checking'
+      || v.windowAvailabilityLabel === 'Not checked'
+      || v.windowAvailabilityLabel === 'Unverified'
+  )
+  const hasWindowCheck = volunteers.some(v => v.windowAvailable !== undefined)
   const noCandidatesReason =
     suitable.length === 0
-      ? 'No active volunteers are currently available in the roster.'
+      ? isWindowCheckPending
+        ? undefined
+        : hasWindowCheck
+          ? 'No active volunteer is eligible for this pickup window. Choose a different window or review volunteer availability.'
+          : 'No active volunteers are currently available in the roster.'
       : undefined
 
   return { ranked: scored, suitable, bestVolunteer, noCandidatesReason }

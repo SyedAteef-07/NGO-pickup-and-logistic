@@ -1,5 +1,5 @@
 import { apiRequest } from '../../api/client';
-import { getLiveAccessToken } from '../pickups/adapters';
+import { getAuthHeaders } from '../pickups/adapters';
 import type {
   CreateVehicle,
   CreateVehicleMaintenanceRecord,
@@ -8,15 +8,6 @@ import type {
   UpdateVehicle,
   VehicleReadiness,
 } from '@aaharaconnect/shared';
-
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  try {
-    const token = await getLiveAccessToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch {
-    return {};
-  }
-}
 
 export interface ApiVehicleItem {
   id: string;
